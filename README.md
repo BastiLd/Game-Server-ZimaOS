@@ -36,7 +36,7 @@ Anschliessend ist das Panel unter <http://HOST:8080> erreichbar.
 | POST    | `/api/servers/{id}/start`         | Server starten                 |
 | POST    | `/api/servers/{id}/stop`          | Server stoppen                 |
 | POST    | `/api/servers/{id}/restart`       | Server neustarten              |
-| DELETE  | `/api/servers/{id}`               | Server entfernen               |
+| DELETE  | `/api/servers/{id}`               | Container loeschen (Volume per `?purge=true|false`) |
 | GET     | `/api/servers/{id}/logs?tail=200` | Letzte Konsolen-Zeilen         |
 | POST    | `/api/servers/{id}/command`       | RCON-Befehl senden             |
 | GET     | `/api/servers/{id}/plugins/search?query=&type=auto` | Modrinth-Suche (auto/mod/plugin) |

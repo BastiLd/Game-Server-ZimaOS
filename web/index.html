@@ -1552,6 +1552,12 @@
                         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg>
                         Zurück zur Übersicht
                     </button>
+
+                    <!-- Permanente Loesch-Aktion fuer den aktiven Server -->
+                    <button class="btn btn-danger" id="dash-btn-delete" onclick="app.deleteActiveServer()" title="Container und Welt-Volume entfernen">
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v2"/></svg>
+                        Server löschen
+                    </button>
                 </div>
 
                 <!-- Main Dashboard Panels Column -->
@@ -1604,6 +1610,45 @@
                                 <div class="stat-info">
                                     <h4>Spielerzahl</h4>
                                     <p id="dash-gauge-players">0 / 20</p>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Verbindungs-Info: lokale IP/Port + Internet-Tunnel-Platzhalter -->
+                        <div class="glass-panel" id="connection-info-panel" style="padding:1.25rem 1.5rem; margin-bottom:1.5rem;">
+                            <div style="display:flex; justify-content:space-between; align-items:center; gap:1rem; flex-wrap:wrap; margin-bottom:0.85rem;">
+                                <h3 style="font-size:1.05rem; display:flex; align-items:center; gap:8px;">
+                                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
+                                    Verbindung
+                                </h3>
+                                <span id="dash-server-port-badge" class="badge-software" style="font-size:0.75rem;">Port: --</span>
+                            </div>
+                            <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(240px, 1fr)); gap:0.85rem;">
+                                <!-- Lokale IP -->
+                                <div style="background:var(--bg-tertiary); border:1px solid var(--border-glass); border-radius:var(--radius-md); padding:0.85rem 1rem;">
+                                    <div style="display:flex; align-items:center; gap:6px; font-size:0.75rem; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.05em;">
+                                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M3 12h18M3 6h18M3 18h18"/></svg>
+                                        Lokales Netzwerk
+                                    </div>
+                                    <div style="font-family: var(--font-mono); font-size: 1.05rem; font-weight:700; color:var(--text-main); margin-top:6px; word-break:break-all;">
+                                        <span id="conn-local-address">-</span>
+                                        <button class="btn-circle" id="conn-local-copy" title="In die Zwischenablage kopieren"
+                                                style="display:inline-flex; width:26px; height:26px; margin-left:6px; vertical-align:middle; background:transparent; color:var(--text-muted); border:1px solid var(--border-glass); cursor:pointer;">
+                                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+                                        </button>
+                                    </div>
+                                </div>
+
+                                <!-- Internet (playit.gg Platzhalter) -->
+                                <div style="background:var(--bg-tertiary); border:1px solid var(--border-glass); border-radius:var(--radius-md); padding:0.85rem 1rem; opacity:0.85;">
+                                    <div style="display:flex; align-items:center; gap:6px; font-size:0.75rem; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.05em;">
+                                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><path d="M2 12h20M12 2a15.3 15.3 0 0 1 0 20"/></svg>
+                                        Internet
+                                    </div>
+                                    <div style="font-family: var(--font-mono); font-size: 0.9rem; font-weight:600; color:var(--text-muted); margin-top:6px;">
+                                        playit.gg Tunnel
+                                        <span class="badge-software" style="font-size:0.65rem; margin-left:4px;">v1.0.4</span>
+                                    </div>
                                 </div>
                             </div>
                         </div>
@@ -2278,6 +2323,9 @@
                                         <svg width="14" height="14" fill="currentColor" viewBox="0 0 16 16"><path d="m11.596 8.697-6.363 3.692c-.54.313-1.233-.066-1.233-.697V4.308c0-.63.692-1.01 1.233-.696l6.363 3.692a.802.802 0 0 1 0 1.393z"/></svg>
                                     </button>
                                 `}
+                                <button class="btn btn-danger btn-circle" title="Server löschen" onclick="app.deleteServer(event, '${server.id}', '${this._escape ? this._escape(server.name) : server.name}')">
+                                    <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/></svg>
+                                </button>
                             </div>
                         </div>
                     `;
@@ -2309,6 +2357,45 @@
             manageServerDirectly(event, serverId) {
                 event.stopPropagation();
                 this.showDashboard(serverId);
+            }
+
+            /* --- LOESCHEN --- */
+            // Aufruf von der Karte (Overview)
+            async deleteServer(event, serverId, displayName) {
+                if (event) event.stopPropagation();
+                const ok = confirm(
+                    `Server "${displayName || serverId}" wirklich endgueltig loeschen?\n\n` +
+                    `Der Container UND das zugehoerige Welt-Volume werden entfernt. ` +
+                    `Diese Aktion kann nicht rueckgaengig gemacht werden.`
+                );
+                if (!ok) return;
+                await this._performDelete(serverId, displayName);
+            }
+
+            // Aufruf vom Dashboard-Sidebar
+            async deleteActiveServer() {
+                if (!this.activeServerId) return;
+                const server = this.getServer(this.activeServerId);
+                await this.deleteServer(null, this.activeServerId, server ? server.name : null);
+            }
+
+            async _performDelete(serverId, displayName) {
+                this.showToast(`Loesche "${displayName || serverId}" ...`, 'warn');
+                try {
+                    await API.deleteServer(serverId);
+                    this.showToast(`Server "${displayName || serverId}" wurde entfernt.`, 'success');
+                    if (this.activeServerId === serverId) {
+                        this.activeServerId = null;
+                        document.getElementById('view-dashboard').classList.remove('active');
+                        document.getElementById('view-overview').classList.add('active');
+                    }
+                    await this.refreshServers();
+                    this.renderServerGrid();
+                    this.renderGlobalStats();
+                } catch (err) {
+                    console.error(err);
+                    this.showToast('Loeschen fehlgeschlagen: ' + err.message, 'error');
+                }
             }
 
             /* --- MODAL LOGIC --- */
@@ -2555,6 +2642,34 @@
                     btnStart.disabled = true;
                     btnStop.disabled = true;
                     btnRestart.disabled = true;
+                }
+
+                // Verbindungs-Info aktualisieren
+                this._renderConnectionInfo(server);
+            }
+
+            _renderConnectionInfo(server) {
+                const portBadge = document.getElementById('dash-server-port-badge');
+                const localEl = document.getElementById('conn-local-address');
+                const copyBtn = document.getElementById('conn-local-copy');
+                if (!localEl) return;
+
+                const host = window.location.hostname || 'localhost';
+                const port = server.port || '?';
+                const fullAddr = `${host}:${port}`;
+
+                localEl.innerText = server.port ? fullAddr : 'Port noch nicht zugewiesen';
+                if (portBadge) portBadge.innerText = `Port: ${server.port || '--'}`;
+
+                if (copyBtn) {
+                    copyBtn.onclick = (ev) => {
+                        ev.stopPropagation();
+                        if (!server.port) return;
+                        navigator.clipboard.writeText(fullAddr).then(
+                            () => this.showToast(`"${fullAddr}" kopiert.`, 'success'),
+                            () => this.showToast('Kopieren fehlgeschlagen', 'error')
+                        );
+                    };
                 }
             }
 

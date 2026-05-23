@@ -373,14 +373,39 @@ def create_server(payload: ServerCreate) -> Dict[str, Any]:
 
 
 @app.delete("/api/servers/{server_id}")
-def delete_server(server_id: str, purge: bool = False) -> Dict[str, Any]:
+def delete_server(server_id: str, purge: bool = True) -> Dict[str, Any]:
+    """
+    Loescht den Container. Standardmaessig (`purge=true`) wird zusaetzlich
+    das zugehoerige named-Volume `<container>-data` entfernt, damit auch die
+    Welt sauber von der Platte verschwindet.
+    Mit `?purge=false` bleibt das Volume erhalten.
+    """
     c = _get_container(server_id)
     name = c.name
+    volume_name = f"{name}-data"
+
     try:
-        c.remove(force=True, v=purge)
+        c.remove(force=True, v=True)
     except APIError as exc:
         raise HTTPException(500, f"Loeschen fehlgeschlagen: {exc}")
-    return {"status": "deleted", "id": name, "purge": purge}
+
+    volume_removed = False
+    if purge:
+        try:
+            vol = docker_client().volumes.get(volume_name)
+            vol.remove(force=True)
+            volume_removed = True
+        except NotFound:
+            pass
+        except APIError as exc:
+            log.warning("Volume %s konnte nicht entfernt werden: %s", volume_name, exc)
+
+    return {
+        "status": "deleted",
+        "id": name,
+        "purge": purge,
+        "volume_removed": volume_removed,
+    }
 
 
 # -------- API: Power --------------------------------------------------------
