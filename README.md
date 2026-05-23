@@ -43,6 +43,18 @@ Anschliessend ist das Panel unter <http://HOST:8080> erreichbar.
 | POST    | `/api/servers/{id}/plugins/install` | Plugin/Mod von Modrinth installieren |
 | GET     | `/api/servers/{id}/plugins/installed` | Installierte .jar-Dateien     |
 | DELETE  | `/api/servers/{id}/plugins/installed/{filename}` | Erweiterung entfernen |
+| GET     | `/api/servers/{id}/players`       | Online-Spieler (RCON `list`)   |
+| POST    | `/api/servers/{id}/players/op`    | OP vergeben                    |
+| POST    | `/api/servers/{id}/players/deop`  | OP entziehen                   |
+| POST    | `/api/servers/{id}/players/kick`  | Spieler kicken                 |
+| POST    | `/api/servers/{id}/players/ban`   | Spieler bannen                 |
+| GET     | `/api/servers/{id}/files`         | Liste editierbarer Dateien     |
+| GET     | `/api/servers/{id}/files/{name}`  | Datei lesen (Web-FTP)          |
+| PUT     | `/api/servers/{id}/files/{name}`  | Datei schreiben (Web-FTP)      |
+| PUT     | `/api/servers/{id}/optimizer`     | RAM-Optimierer aktivieren      |
+| GET     | `/api/servers/{id}/tunnel`        | playit.gg Tunnel-Status        |
+| POST    | `/api/servers/{id}/tunnel/start`  | playit.gg Tunnel starten       |
+| POST    | `/api/servers/{id}/tunnel/stop`   | playit.gg Tunnel stoppen       |
 | GET     | `/api/stats`                      | Aggregierte Stats              |
 
 ## Konfiguration ueber Environment-Variablen

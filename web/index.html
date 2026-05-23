@@ -1417,6 +1417,290 @@
         .toast-msg.success { border-left-color: var(--status-online); }
         .toast-msg.error { border-left-color: var(--status-offline); }
         .toast-msg.warn { border-left-color: var(--status-idle); }
+
+        /* ==========================================================================
+           12. v1.0.4 - Components: Players, FTP-Editor, Optimizer-Toggle, Warnings
+           ========================================================================== */
+
+        /* 12.1 Pulsierender Status-Punkt (verstaerkt) */
+        @keyframes pulse {
+            0%   { transform: scale(0.85); box-shadow: 0 0 0 0 var(--status-online-glow); opacity: 0.95; }
+            70%  { transform: scale(1.15); box-shadow: 0 0 0 10px transparent; opacity: 1; }
+            100% { transform: scale(0.85); box-shadow: 0 0 0 0 transparent; opacity: 0.85; }
+        }
+        .running .status-dot { animation: pulse 1.5s infinite; }
+
+        /* 12.2 Overload-Warnung */
+        .meter-bar-fill.overloaded {
+            background: #ff3b3b !important;
+            box-shadow: 0 0 12px rgba(255, 60, 60, 0.6);
+        }
+        @keyframes flicker-warn {
+            0%, 100% { opacity: 1; }
+            50%      { opacity: 0.45; }
+        }
+        .overload-banner {
+            display: none;
+            margin-top: 0.85rem;
+            padding: 10px 14px;
+            border-radius: var(--radius-md);
+            background: rgba(255, 60, 60, 0.08);
+            border: 1px solid rgba(255, 60, 60, 0.45);
+            color: #ff7575;
+            font-weight: 700;
+            letter-spacing: 0.02em;
+            animation: flicker-warn 1.1s infinite;
+        }
+        .overload-banner.active { display: block; }
+
+        /* 12.3 Spieler-Liste */
+        .players-card {
+            margin-top: 1.5rem;
+            padding: 1.25rem 1.5rem;
+        }
+        .players-card-head {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 0.85rem;
+        }
+        .players-card-head h3 {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 1.05rem;
+        }
+        .players-list {
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+        }
+        .player-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: rgba(255,255,255,0.02);
+            border: 1px solid var(--border-glass);
+            border-radius: var(--radius-md);
+            padding: 0.6rem 0.9rem;
+            position: relative;
+            transition: background 0.2s ease, border-color 0.2s ease;
+        }
+        .player-row:hover {
+            background: rgba(255,255,255,0.04);
+            border-color: rgba(255,255,255,0.12);
+        }
+        .player-info {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            min-width: 0;
+        }
+        .player-avatar {
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            background: var(--bg-tertiary);
+            border: 1px solid var(--border-glass);
+            object-fit: cover;
+            flex-shrink: 0;
+        }
+        .player-name {
+            font-weight: 600;
+            font-size: 0.95rem;
+            color: var(--text-main);
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .player-menu-btn {
+            background: transparent;
+            border: 1px solid var(--border-glass);
+            color: var(--text-muted);
+            cursor: pointer;
+            width: 30px;
+            height: 30px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: var(--radius-sm);
+            transition: all 0.2s ease;
+        }
+        .player-menu-btn:hover {
+            color: var(--accent-color);
+            border-color: var(--accent-color);
+        }
+        .player-menu {
+            position: absolute;
+            right: 0.5rem;
+            top: calc(100% - 4px);
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-glass);
+            border-radius: var(--radius-md);
+            min-width: 180px;
+            box-shadow: var(--card-shadow);
+            z-index: 50;
+            display: none;
+            overflow: hidden;
+        }
+        .player-menu.open { display: block; }
+        .player-menu-item {
+            width: 100%;
+            text-align: left;
+            background: transparent;
+            border: none;
+            color: var(--text-main);
+            padding: 9px 14px;
+            font-family: var(--font-ui);
+            font-size: 0.88rem;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .player-menu-item:hover { background: rgba(255,255,255,0.05); }
+        .player-menu-item.danger { color: var(--status-offline); }
+        .player-empty {
+            color: var(--text-muted);
+            font-size: 0.9rem;
+            text-align: center;
+            padding: 1rem 0;
+        }
+
+        /* 12.4 Datei-Manager / Web-FTP */
+        .file-manager-layout {
+            display: grid;
+            grid-template-columns: 260px 1fr;
+            gap: 1.5rem;
+            min-height: 480px;
+        }
+        @media (max-width: 768px) {
+            .file-manager-layout { grid-template-columns: 1fr; }
+        }
+        .file-list {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+            padding: 0.75rem;
+        }
+        .file-list-item {
+            display: flex;
+            align-items: center;
+            gap: 0.6rem;
+            padding: 9px 12px;
+            border-radius: var(--radius-sm);
+            background: transparent;
+            border: 1px solid transparent;
+            color: var(--text-muted);
+            font-family: var(--font-mono);
+            font-size: 0.85rem;
+            cursor: pointer;
+            transition: all 0.18s ease;
+            text-align: left;
+        }
+        .file-list-item:hover {
+            background: rgba(255,255,255,0.03);
+            color: var(--text-main);
+        }
+        .file-list-item.active {
+            background: var(--accent-color);
+            color: var(--text-on-accent);
+            border-color: var(--accent-color);
+        }
+        .file-list-item .badge-missing {
+            font-size: 0.65rem;
+            color: var(--text-muted);
+            border: 1px solid var(--border-glass);
+            border-radius: 999px;
+            padding: 1px 6px;
+            margin-left: auto;
+        }
+        .file-editor-panel {
+            display: flex;
+            flex-direction: column;
+            padding: 1rem;
+            gap: 0.75rem;
+        }
+        .file-editor-toolbar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 0.75rem;
+        }
+        .file-editor-textarea {
+            flex: 1;
+            min-height: 380px;
+            background: #06080e;
+            color: #d8dee9;
+            border: 1px solid var(--border-glass);
+            border-radius: var(--radius-md);
+            padding: 12px 14px;
+            font-family: var(--font-mono);
+            font-size: 0.85rem;
+            line-height: 1.5;
+            resize: vertical;
+            outline: none;
+            transition: border-color 0.2s ease, box-shadow 0.2s ease;
+        }
+        .file-editor-textarea:focus {
+            border-color: var(--accent-color);
+            box-shadow: 0 0 12px var(--accent-glow);
+        }
+        .btn-save-file {
+            background: var(--accent-color);
+            color: var(--text-on-accent);
+            box-shadow: 0 0 18px var(--accent-glow);
+            font-weight: 700;
+        }
+        .btn-save-file:hover {
+            background: var(--accent-hover);
+            box-shadow: 0 0 26px var(--accent-glow);
+        }
+
+        /* 12.5 RAM-Optimierer Toggle (HSL-styled) */
+        .toggle-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 1rem 1.25rem;
+            background: var(--bg-tertiary);
+            border: 1px solid var(--border-glass);
+            border-radius: var(--radius-md);
+            margin-bottom: 1rem;
+        }
+        .toggle-row .toggle-info h4 { font-size: 0.95rem; margin-bottom: 4px; }
+        .toggle-row .toggle-info p { font-size: 0.8rem; color: var(--text-muted); }
+        .toggle-switch {
+            position: relative;
+            display: inline-block;
+            width: 50px;
+            height: 28px;
+            flex-shrink: 0;
+        }
+        .toggle-switch input { opacity: 0; width: 0; height: 0; }
+        .toggle-slider {
+            position: absolute; cursor: pointer; inset: 0;
+            background: var(--bg-primary);
+            border: 1px solid var(--border-glass);
+            border-radius: 28px;
+            transition: 0.3s;
+        }
+        .toggle-slider:before {
+            content: ""; position: absolute;
+            width: 20px; height: 20px;
+            left: 3px; top: 3px;
+            background: var(--text-muted);
+            border-radius: 50%;
+            transition: 0.3s;
+        }
+        .toggle-switch input:checked + .toggle-slider {
+            background: var(--accent-color);
+            border-color: var(--accent-color);
+        }
+        .toggle-switch input:checked + .toggle-slider:before {
+            transform: translateX(22px);
+            background: var(--text-on-accent);
+        }
     </style>
 </head>
 <body>
@@ -1545,6 +1829,12 @@
                                     Backup-Verlauf
                                 </button>
                             </li>
+                            <li>
+                                <button class="dash-nav-btn" onclick="app.switchTab('files')" id="tab-btn-files">
+                                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+                                    Dateien
+                                </button>
+                            </li>
                         </ul>
                     </nav>
 
@@ -1589,18 +1879,24 @@
                                 <div class="stat-icon" id="gauge-cpu-icon">
                                     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="4" width="16" height="16" rx="2" ry="2"/><rect x="9" y="9" width="6" height="6"/><line x1="9" y1="1" x2="9" y2="4"/><line x1="15" y1="1" x2="15" y2="4"/><line x1="9" y1="20" x2="9" y2="23"/><line x1="15" y1="20" x2="15" y2="23"/><line x1="20" y1="9" x2="23" y2="9"/><line x1="20" y1="15" x2="23" y2="15"/><line x1="1" y1="9" x2="4" y2="9"/><line x1="1" y1="15" x2="4" y2="15"/></svg>
                                 </div>
-                                <div class="stat-info">
+                                <div class="stat-info" style="flex:1;">
                                     <h4>CPU Auslastung</h4>
                                     <p id="dash-gauge-cpu">0%</p>
+                                    <div class="meter-bar-container" style="margin-top:6px; width:100%;">
+                                        <div class="meter-bar-fill" id="dash-gauge-cpu-bar" style="width:0%;"></div>
+                                    </div>
                                 </div>
                             </div>
                             <div class="stat-card glass-panel">
                                 <div class="stat-icon" id="gauge-ram-icon">
                                     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 19h12V5H6v14z"/><path d="M10 5V2h4v3"/><path d="M7 19v3h2v-3"/><path d="M15 19v3h2v-3"/></svg>
                                 </div>
-                                <div class="stat-info">
+                                <div class="stat-info" style="flex:1;">
                                     <h4>RAM Belegung</h4>
                                     <p id="dash-gauge-ram">0.0 / 8.0 GB</p>
+                                    <div class="meter-bar-container" style="margin-top:6px; width:100%;">
+                                        <div class="meter-bar-fill" id="dash-gauge-ram-bar" style="width:0%;"></div>
+                                    </div>
                                 </div>
                             </div>
                             <div class="stat-card glass-panel">
@@ -1639,15 +1935,25 @@
                                     </div>
                                 </div>
 
-                                <!-- Internet (playit.gg Platzhalter) -->
-                                <div style="background:var(--bg-tertiary); border:1px solid var(--border-glass); border-radius:var(--radius-md); padding:0.85rem 1rem; opacity:0.85;">
-                                    <div style="display:flex; align-items:center; gap:6px; font-size:0.75rem; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.05em;">
-                                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><path d="M2 12h20M12 2a15.3 15.3 0 0 1 0 20"/></svg>
-                                        Internet
+                                <!-- Internet (playit.gg Tunnel) -->
+                                <div style="background:var(--bg-tertiary); border:1px solid var(--border-glass); border-radius:var(--radius-md); padding:0.85rem 1rem;">
+                                    <div style="display:flex; align-items:center; justify-content:space-between; gap:6px; font-size:0.75rem; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.05em;">
+                                        <span style="display:flex; align-items:center; gap:6px;">
+                                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><path d="M2 12h20M12 2a15.3 15.3 0 0 1 0 20"/></svg>
+                                            Internet (playit.gg)
+                                        </span>
+                                        <span id="conn-tunnel-status" class="badge-software" style="font-size:0.65rem;">offline</span>
                                     </div>
-                                    <div style="font-family: var(--font-mono); font-size: 0.9rem; font-weight:600; color:var(--text-muted); margin-top:6px;">
-                                        playit.gg Tunnel
-                                        <span class="badge-software" style="font-size:0.65rem; margin-left:4px;">v1.0.4</span>
+                                    <div id="conn-tunnel-row" style="font-family: var(--font-mono); font-size: 0.95rem; font-weight:700; color:var(--text-main); margin-top:6px; word-break:break-all;">
+                                        <span id="conn-tunnel-domain">Noch kein Tunnel aktiv.</span>
+                                        <button class="btn-circle" id="conn-tunnel-copy" title="Domain kopieren"
+                                                style="display:none; width:26px; height:26px; margin-left:6px; vertical-align:middle; background:transparent; color:var(--text-muted); border:1px solid var(--border-glass); cursor:pointer;">
+                                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+                                        </button>
+                                    </div>
+                                    <div style="display:flex; gap:0.5rem; margin-top:0.6rem;">
+                                        <button class="btn btn-primary" id="btn-tunnel-start" onclick="app.startTunnel()" style="padding: 6px 12px; font-size: 0.75rem;">Tunnel starten</button>
+                                        <button class="btn btn-secondary" id="btn-tunnel-stop" onclick="app.stopTunnel()" style="padding: 6px 12px; font-size: 0.75rem; display:none;">Tunnel stoppen</button>
                                     </div>
                                 </div>
                             </div>
@@ -1676,6 +1982,25 @@
                                 <span class="console-prompt-indicator">&gt;</span>
                                 <input type="text" class="console-input" id="console-cmd-input" placeholder="Minecraft-Befehl eingeben (z.B. /help, /op basti, /say hallo)..." autocomplete="off">
                                 <button class="btn btn-primary" style="padding:6px 12px; font-size:0.8rem;" onclick="app.submitConsoleCommand()">Senden</button>
+                            </div>
+                        </div>
+
+                        <!-- Overload-Banner (CSS .overload-banner.active blendet ein) -->
+                        <div id="overload-banner" class="overload-banner" role="alert">
+                            ⚠ Server überlastet – Tick-Rate sinkt!
+                        </div>
+
+                        <!-- Online-Spieler -->
+                        <div class="glass-panel players-card" id="players-card">
+                            <div class="players-card-head">
+                                <h3>
+                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+                                    Online-Spieler
+                                </h3>
+                                <span id="players-count-badge" class="badge-software" style="font-size:0.7rem;">0 / 20</span>
+                            </div>
+                            <div class="players-list" id="players-list-container">
+                                <div class="player-empty">Keine Spieler online.</div>
                             </div>
                         </div>
                     </div>
@@ -1714,6 +2039,18 @@
                                             <span class="range-value" id="label-allocated-ram">4 GB</span>
                                         </div>
                                     </div>
+                                </div>
+
+                                <!-- v1.0.4: Auto RAM-Optimierer -->
+                                <div class="toggle-row">
+                                    <div class="toggle-info">
+                                        <h4>Automatischer RAM-Optimierer</h4>
+                                        <p>Triggert nach 30 Minuten ohne Spieler ein <code>save-all</code> + GC-Hilfe, um RAM zurückzugewinnen.</p>
+                                    </div>
+                                    <label class="toggle-switch" title="Optimierer aktivieren">
+                                        <input type="checkbox" id="toggle-optimizer" onchange="app.toggleOptimizer(this.checked)">
+                                        <span class="toggle-slider"></span>
+                                    </label>
                                 </div>
 
                                 <button class="btn btn-primary" style="align-self: flex-start; margin-top: 0.5rem;" onclick="app.saveSoftwareConfig()">
@@ -1821,6 +2158,28 @@
                                         <!-- Injected by Server selection -->
                                     </tbody>
                                 </table>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Panel 5: Datei-Manager (v1.0.4) -->
+                    <div id="panel-files" class="tab-panel">
+                        <div class="glass-panel file-manager-layout" style="padding: 0.75rem;">
+                            <div class="file-list" id="file-list-container">
+                                <div style="color:var(--text-muted); padding: 0.75rem; font-size: 0.85rem;">Lade Dateien...</div>
+                            </div>
+                            <div class="file-editor-panel">
+                                <div class="file-editor-toolbar">
+                                    <div>
+                                        <h3 style="font-size: 1rem;" id="file-editor-name">Keine Datei ausgewählt</h3>
+                                        <p style="font-size: 0.75rem; color:var(--text-muted);" id="file-editor-path">Wähle links eine Datei aus, um sie zu bearbeiten.</p>
+                                    </div>
+                                    <button class="btn btn-save-file" id="btn-file-save" onclick="app.saveActiveFile()" disabled>
+                                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right:6px;"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+                                        Datei speichern
+                                    </button>
+                                </div>
+                                <textarea class="file-editor-textarea" id="file-editor-textarea" placeholder="// Datei links auswählen..." spellcheck="false"></textarea>
                             </div>
                         </div>
                     </div>
@@ -1962,6 +2321,20 @@
                 installedPlugins: (id) => req('GET', `/api/servers/${id}/plugins/installed`),
                 deleteInstalledPlugin: (id, filename) =>
                     req('DELETE', `/api/servers/${id}/plugins/installed/${encodeURIComponent(filename)}`),
+                // v1.0.4: Spieler / Dateien / Optimierer / Tunnel
+                listPlayers: (id) => req('GET', `/api/servers/${id}/players`),
+                playerOp:    (id, player) => req('POST', `/api/servers/${id}/players/op`,    { player }),
+                playerDeop:  (id, player) => req('POST', `/api/servers/${id}/players/deop`,  { player }),
+                playerKick:  (id, player, reason) => req('POST', `/api/servers/${id}/players/kick`, { player, reason }),
+                playerBan:   (id, player, reason) => req('POST', `/api/servers/${id}/players/ban`,  { player, reason }),
+                listFiles:   (id) => req('GET', `/api/servers/${id}/files`),
+                readFile:    (id, name) => req('GET', `/api/servers/${id}/files/${encodeURIComponent(name)}`),
+                writeFile:   (id, name, content) =>
+                    req('PUT', `/api/servers/${id}/files/${encodeURIComponent(name)}`, { content }),
+                setOptimizer:(id, enabled) => req('PUT', `/api/servers/${id}/optimizer`, { enabled }),
+                tunnelStatus:(id) => req('GET', `/api/servers/${id}/tunnel`),
+                tunnelStart: (id, secret) => req('POST', `/api/servers/${id}/tunnel/start`, { secret: secret || null }),
+                tunnelStop:  (id) => req('POST', `/api/servers/${id}/tunnel/stop`),
             };
         })();
 
@@ -2078,6 +2451,9 @@
 
                 // Listen for drag & drop uploads
                 this.setupDragAndDrop();
+
+                // v1.0.4: globaler Klick-Handler schliesst offene Spieler-Menues
+                document.addEventListener('click', () => this._closeAllPlayerMenus());
             }
 
             init() {
@@ -2136,13 +2512,18 @@
                     version: dto.version,
                     ramMax: dto.ram_max,
                     ramUsed: dto.ram_used,
+                    ramPct: dto.ram_pct || 0,
                     cpuUsed: dto.cpu_used,
+                    overloaded: !!dto.overloaded,
+                    optimizer: !!dto.optimizer,
                     playersCurrent: dto.players_current,
                     playersMax: dto.players_max,
                     port: dto.port,
                     installedExtensions: prev ? prev.installedExtensions : [],
                     backups: prev ? prev.backups : [],
-                    logs: prev ? prev.logs : []
+                    logs: prev ? prev.logs : [],
+                    onlinePlayers: prev ? prev.onlinePlayers : [],
+                    tunnel: prev ? prev.tunnel : null,
                 };
             }
 
@@ -2204,6 +2585,9 @@
 
                 // Live-Logs vom Backend
                 this.refreshLogs(server.id);
+                // v1.0.4: Spieler + Tunnel-Status
+                this.loadPlayers(server.id);
+                this.refreshTunnel(server.id);
             }
 
             /* --- TAB CONTROLLER --- */
@@ -2222,6 +2606,9 @@
                     this.renderPluginsCatalog();
                     const server = this.getServer(this.activeServerId);
                     if (server) this.loadInstalledExtensions(server);
+                }
+                if (tabId === 'files') {
+                    this.loadFilesIndex();
                 }
             }
 
@@ -2671,6 +3058,273 @@
                         );
                     };
                 }
+
+                this._renderTunnelInfo(server);
+            }
+
+            _renderTunnelInfo(server) {
+                const status = document.getElementById('conn-tunnel-status');
+                const domainEl = document.getElementById('conn-tunnel-domain');
+                const copyBtn = document.getElementById('conn-tunnel-copy');
+                const startBtn = document.getElementById('btn-tunnel-start');
+                const stopBtn = document.getElementById('btn-tunnel-stop');
+                if (!status) return;
+
+                const t = server.tunnel || { status: 'not_started' };
+                const hasDomain = !!t.domain;
+
+                status.innerText = t.status || 'unknown';
+                if (hasDomain) {
+                    domainEl.innerText = t.domain;
+                    copyBtn.style.display = 'inline-flex';
+                    copyBtn.onclick = (ev) => {
+                        ev.stopPropagation();
+                        navigator.clipboard.writeText(t.domain).then(
+                            () => this.showToast('Domain kopiert.', 'success'),
+                            () => this.showToast('Kopieren fehlgeschlagen', 'error')
+                        );
+                    };
+                } else {
+                    copyBtn.style.display = 'none';
+                    if (t.status === 'running') {
+                        domainEl.innerText = 'Tunnel läuft – Domain wird erkannt …';
+                    } else if (t.status === 'not_started') {
+                        domainEl.innerText = 'Noch kein Tunnel aktiv.';
+                    } else {
+                        domainEl.innerText = `Tunnel Status: ${t.status}`;
+                    }
+                }
+
+                const isRunning = t.status === 'running' || t.status === 'created' || t.status === 'restarting';
+                startBtn.style.display = isRunning ? 'none' : 'inline-flex';
+                stopBtn.style.display  = isRunning ? 'inline-flex' : 'none';
+            }
+
+            async refreshTunnel(serverId) {
+                const id = serverId || this.activeServerId;
+                if (!id) return;
+                const server = this.getServer(id);
+                if (!server) return;
+                try {
+                    const data = await API.tunnelStatus(id);
+                    server.tunnel = data;
+                } catch (err) {
+                    server.tunnel = { status: 'error', message: err.message };
+                }
+                if (this.activeServerId === id) this._renderTunnelInfo(server);
+            }
+
+            async startTunnel() {
+                if (!this.activeServerId) return;
+                this.showToast('Starte playit-Tunnel ...', 'warn');
+                try {
+                    const secret = (window.prompt(
+                        'Optional: playit.gg Secret-Key einfügen (oder leer lassen, um den Tunnel zu starten und sich dann unter https://playit.gg/claim einzuloggen):',
+                        ''
+                    ) || '').trim();
+                    const data = await API.tunnelStart(this.activeServerId, secret || null);
+                    const server = this.getServer(this.activeServerId);
+                    if (server) server.tunnel = data;
+                    this._renderTunnelInfo(server);
+                    this.showToast('Tunnel gestartet. Domain wird gleich angezeigt.', 'success');
+                } catch (err) {
+                    this.showToast('Tunnel-Start fehlgeschlagen: ' + err.message, 'error');
+                }
+            }
+
+            async stopTunnel() {
+                if (!this.activeServerId) return;
+                if (!confirm('Tunnel wirklich stoppen?')) return;
+                try {
+                    await API.tunnelStop(this.activeServerId);
+                    const server = this.getServer(this.activeServerId);
+                    if (server) server.tunnel = { status: 'not_started' };
+                    this._renderTunnelInfo(server);
+                    this.showToast('Tunnel gestoppt.', 'warn');
+                } catch (err) {
+                    this.showToast('Tunnel-Stop fehlgeschlagen: ' + err.message, 'error');
+                }
+            }
+
+            /* --- v1.0.4 SPIELER --- */
+            async loadPlayers(serverId) {
+                const id = serverId || this.activeServerId;
+                if (!id) return;
+                const server = this.getServer(id);
+                if (!server) return;
+                try {
+                    const data = await API.listPlayers(id);
+                    server.onlinePlayers = data.players || [];
+                    server.playersCurrent = data.count || 0;
+                    server.playersMax = data.max || server.playersMax || 20;
+                } catch (err) {
+                    server.onlinePlayers = [];
+                }
+                if (this.activeServerId === id) this.renderPlayers(server);
+            }
+
+            renderPlayers(server) {
+                const list = document.getElementById('players-list-container');
+                const badge = document.getElementById('players-count-badge');
+                if (!list) return;
+                const players = server.onlinePlayers || [];
+
+                if (badge) badge.innerText = `${players.length} / ${server.playersMax || 20}`;
+
+                if (!players.length) {
+                    list.innerHTML = '<div class="player-empty">Keine Spieler online.</div>';
+                    return;
+                }
+
+                list.innerHTML = '';
+                players.forEach((name) => {
+                    const safe = this._escape(name);
+                    const row = document.createElement('div');
+                    row.className = 'player-row';
+                    row.innerHTML = `
+                        <div class="player-info">
+                            <img class="player-avatar" alt="" loading="lazy"
+                                 src="https://mc-heads.net/avatar/${encodeURIComponent(name)}/32"
+                                 onerror="this.style.visibility='hidden'">
+                            <span class="player-name">${safe}</span>
+                        </div>
+                        <button class="player-menu-btn" title="Aktionen" data-name="${safe}">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="19" cy="12" r="2"/></svg>
+                        </button>
+                        <div class="player-menu" data-menu-for="${safe}">
+                            <button class="player-menu-item"        data-action="op"   data-name="${safe}">Adminrechte vergeben (OP)</button>
+                            <button class="player-menu-item"        data-action="deop" data-name="${safe}">OP entziehen</button>
+                            <button class="player-menu-item danger" data-action="kick" data-name="${safe}">Kicken</button>
+                            <button class="player-menu-item danger" data-action="ban"  data-name="${safe}">Bannen</button>
+                        </div>
+                    `;
+                    row.querySelector('.player-menu-btn').addEventListener('click', (e) => {
+                        e.stopPropagation();
+                        this._togglePlayerMenu(row);
+                    });
+                    row.querySelectorAll('.player-menu-item').forEach(btn => {
+                        btn.addEventListener('click', (e) => {
+                            e.stopPropagation();
+                            this._closeAllPlayerMenus();
+                            this.playerAction(btn.dataset.action, btn.dataset.name);
+                        });
+                    });
+                    list.appendChild(row);
+                });
+            }
+
+            _togglePlayerMenu(row) {
+                const menu = row.querySelector('.player-menu');
+                const open = menu.classList.contains('open');
+                this._closeAllPlayerMenus();
+                if (!open) menu.classList.add('open');
+            }
+
+            _closeAllPlayerMenus() {
+                document.querySelectorAll('.player-menu.open').forEach(m => m.classList.remove('open'));
+            }
+
+            async playerAction(action, name) {
+                if (!this.activeServerId || !name) return;
+                const id = this.activeServerId;
+                try {
+                    if (action === 'op')   await API.playerOp(id, name);
+                    if (action === 'deop') await API.playerDeop(id, name);
+                    if (action === 'kick') await API.playerKick(id, name, 'Vom Admin gekickt');
+                    if (action === 'ban')  await API.playerBan(id, name, 'Vom Admin gebannt');
+                    this.showToast(`${action.toUpperCase()} an "${name}" ausgeführt.`, 'success');
+                    this.loadPlayers(id);
+                } catch (err) {
+                    this.showToast(`${action} fehlgeschlagen: ` + err.message, 'error');
+                }
+            }
+
+            /* --- v1.0.4 OPTIMIZER --- */
+            async toggleOptimizer(enabled) {
+                if (!this.activeServerId) return;
+                try {
+                    await API.setOptimizer(this.activeServerId, !!enabled);
+                    const server = this.getServer(this.activeServerId);
+                    if (server) server.optimizer = !!enabled;
+                    this.showToast(`RAM-Optimierer: ${enabled ? 'aktiv' : 'deaktiviert'}.`, 'success');
+                } catch (err) {
+                    this.showToast('Optimierer-Update fehlgeschlagen: ' + err.message, 'error');
+                }
+            }
+
+            /* --- v1.0.4 DATEI-MANAGER --- */
+            async loadFilesIndex() {
+                const id = this.activeServerId;
+                if (!id) return;
+                const list = document.getElementById('file-list-container');
+                if (!list) return;
+                list.innerHTML = '<div style="color:var(--text-muted); padding: 0.75rem; font-size: 0.85rem;">Lade Dateien...</div>';
+
+                let data;
+                try {
+                    data = await API.listFiles(id);
+                } catch (err) {
+                    list.innerHTML = `<div style="color:var(--status-offline); padding: 0.75rem; font-size: 0.85rem;">${this._escape(err.message)}</div>`;
+                    return;
+                }
+
+                list.innerHTML = '';
+                (data.files || []).forEach(f => {
+                    const btn = document.createElement('button');
+                    btn.className = 'file-list-item';
+                    btn.dataset.name = f.name;
+                    btn.innerHTML = `
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+                        <span>${this._escape(f.name)}</span>
+                        ${f.exists ? '' : '<span class="badge-missing">leer</span>'}
+                    `;
+                    btn.onclick = () => this.openFile(f.name);
+                    list.appendChild(btn);
+                });
+            }
+
+            async openFile(name) {
+                const id = this.activeServerId;
+                if (!id) return;
+                document.querySelectorAll('#file-list-container .file-list-item').forEach(b => {
+                    b.classList.toggle('active', b.dataset.name === name);
+                });
+                const ta = document.getElementById('file-editor-textarea');
+                const nameEl = document.getElementById('file-editor-name');
+                const pathEl = document.getElementById('file-editor-path');
+                const saveBtn = document.getElementById('btn-file-save');
+
+                ta.value = '// Lade ...';
+                nameEl.innerText = name;
+                pathEl.innerText = 'Lade ...';
+                saveBtn.disabled = true;
+                this._activeFile = name;
+
+                try {
+                    const data = await API.readFile(id, name);
+                    ta.value = data.content || '';
+                    pathEl.innerText = data.path;
+                    saveBtn.disabled = false;
+                } catch (err) {
+                    ta.value = '';
+                    pathEl.innerText = 'Fehler';
+                    this.showToast('Datei konnte nicht geladen werden: ' + err.message, 'error');
+                }
+            }
+
+            async saveActiveFile() {
+                if (!this.activeServerId || !this._activeFile) return;
+                const ta = document.getElementById('file-editor-textarea');
+                const saveBtn = document.getElementById('btn-file-save');
+                saveBtn.disabled = true;
+                try {
+                    await API.writeFile(this.activeServerId, this._activeFile, ta.value);
+                    this.showToast(`"${this._activeFile}" gespeichert. Neustart empfohlen.`, 'success');
+                } catch (err) {
+                    this.showToast('Speichern fehlgeschlagen: ' + err.message, 'error');
+                } finally {
+                    saveBtn.disabled = false;
+                }
             }
 
             updateResourceMeters(server) {
@@ -2679,16 +3333,35 @@
                 // CPU
                 const cpuVal = isRunning ? server.cpuUsed : 0;
                 document.getElementById('dash-gauge-cpu').innerText = `${cpuVal}%`;
-                
+                const cpuBar = document.getElementById('dash-gauge-cpu-bar');
+                if (cpuBar) {
+                    cpuBar.style.width = `${Math.max(0, Math.min(100, cpuVal))}%`;
+                    cpuBar.classList.toggle('overloaded', !!server.overloaded);
+                }
+
                 // RAM
                 const ramMax = server.ramMax;
                 const ramUsed = isRunning ? server.ramUsed.toFixed(1) : '0.0';
                 document.getElementById('dash-gauge-ram').innerText = `${ramUsed} / ${ramMax}.0 GB`;
+                const ramBar = document.getElementById('dash-gauge-ram-bar');
+                if (ramBar) {
+                    const ramPct = isRunning ? (server.ramPct || (server.ramUsed / Math.max(ramMax, 1) * 100)) : 0;
+                    ramBar.style.width = `${Math.max(0, Math.min(100, ramPct))}%`;
+                    ramBar.classList.toggle('overloaded', ramPct >= 90);
+                }
 
                 // Players
                 const playMax = server.playersMax;
                 const playCur = isRunning ? server.playersCurrent : 0;
                 document.getElementById('dash-gauge-players').innerText = `${playCur} / ${playMax}`;
+
+                // Overload-Banner
+                const banner = document.getElementById('overload-banner');
+                if (banner) banner.classList.toggle('active', !!server.overloaded && isRunning);
+
+                // Optimizer-Toggle nachziehen, falls man im Software-Tab ist
+                const opt = document.getElementById('toggle-optimizer');
+                if (opt) opt.checked = !!server.optimizer;
             }
 
 
@@ -2705,6 +3378,8 @@
                         }
                         if (this.activeTab === 'status') {
                             this.refreshLogs(this.activeServerId);
+                            this.loadPlayers(this.activeServerId);
+                            this.refreshTunnel(this.activeServerId);
                         }
                     } else {
                         await this.refreshServers();

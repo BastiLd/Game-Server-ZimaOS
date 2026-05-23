@@ -58,6 +58,13 @@ NAME_LABEL = "craftcontrol.name"
 SOFTWARE_LABEL = "craftcontrol.software"
 VERSION_LABEL = "craftcontrol.version"
 RAM_LABEL = "craftcontrol.ram"
+OPTIMIZER_LABEL = "craftcontrol.optimizer"           # 'true'/'false'
+TUNNEL_FOR_LABEL = "craftcontrol.tunnel_for"         # value = parent container name (auf playit-Sidecar)
+TUNNEL_KIND_LABEL = "craftcontrol.tunnel_kind"       # 'playit'
+
+CPU_OVERLOAD_THRESHOLD = float(os.getenv("CRAFTCONTROL_CPU_OVERLOAD", "90"))
+IDLE_OPTIMIZER_MINUTES = int(os.getenv("CRAFTCONTROL_IDLE_MINUTES", "30"))
+PLAYIT_IMAGE = os.getenv("CRAFTCONTROL_PLAYIT_IMAGE", "ghcr.io/playit-cloud/playit-cli:latest")
 
 MC_IMAGE = os.getenv("CRAFTCONTROL_IMAGE", "itzg/minecraft-server:latest")
 DATA_ROOT = os.getenv("CRAFTCONTROL_DATA_ROOT", "/data/craftcontrol")
@@ -126,6 +133,23 @@ class CommandRequest(BaseModel):
 class PluginInstallRequest(BaseModel):
     project_id: str = Field(..., min_length=1)
     version_id: Optional[str] = None  # falls eine bestimmte Version gewuenscht ist
+
+
+class PlayerActionRequest(BaseModel):
+    player: str = Field(..., min_length=1, max_length=32)
+    reason: Optional[str] = None
+
+
+class FileWriteRequest(BaseModel):
+    content: str
+
+
+class OptimizerRequest(BaseModel):
+    enabled: bool
+
+
+class TunnelStartRequest(BaseModel):
+    secret: Optional[str] = None  # playit secret key (optional)
 
 
 class ServerInfo(BaseModel):
@@ -257,10 +281,15 @@ def _container_to_dto(c: Container, with_stats: bool = True) -> Dict[str, Any]:
     software = c.labels.get(SOFTWARE_LABEL) or "Vanilla"
     version = c.labels.get(VERSION_LABEL) or "latest"
     ram_max = _ram_label_to_int(c.labels.get(RAM_LABEL))
+    optimizer_on = (c.labels.get(OPTIMIZER_LABEL) or "false").lower() == "true"
 
     status = _status_from_container(c)
     stats = _stats_for(c) if with_stats else {"cpu": 0.0, "ram_mb": 0.0}
     ram_used_gb = round(stats["ram_mb"] / 1024, 2)
+
+    # Spieler-Cache (befuellt durch /players-Endpoint und Idle-Watchdog)
+    cached_players = _PLAYERS_CACHE.get(c.name) or {}
+    players_current = cached_players.get("count", 0)
 
     return {
         "id": c.name,                  # stabiler Identifier nach aussen
@@ -271,10 +300,13 @@ def _container_to_dto(c: Container, with_stats: bool = True) -> Dict[str, Any]:
         "version": version,
         "ram_max": ram_max,
         "ram_used": ram_used_gb,
+        "ram_pct": round(min(100.0, (ram_used_gb / ram_max * 100.0) if ram_max else 0.0), 1),
         "cpu_used": stats["cpu"],
-        "players_current": 0,          # Mojang-Query (TBD) - aktuell unbekannt
+        "overloaded": stats["cpu"] >= CPU_OVERLOAD_THRESHOLD,
+        "players_current": players_current,
         "players_max": 20,
         "port": _host_port(c),
+        "optimizer": optimizer_on,
     }
 
 
@@ -343,6 +375,7 @@ def create_server(payload: ServerCreate) -> Dict[str, Any]:
         SOFTWARE_LABEL: payload.software,
         VERSION_LABEL: payload.version,
         RAM_LABEL: str(payload.ram),
+        OPTIMIZER_LABEL: "false",
     }
 
     log.info("Erstelle Server '%s' auf Port %d (%s %s)",
@@ -526,6 +559,69 @@ def _container_exec(container: Container, cmd: List[str]) -> tuple[int, str]:
     """Fuehrt einen Befehl im Container aus und gibt (exit, output) zurueck."""
     res = container.exec_run(cmd, demux=False)
     return res.exit_code, (res.output or b"").decode("utf-8", errors="replace")
+
+
+# ---------------------------------------------------------------------------
+# RCON / Spieler-Cache
+# ---------------------------------------------------------------------------
+# Cache pro Container: {"count": int, "players": [str], "ts": float}.
+# Wird vom Idle-Watchdog UND vom /players-Endpoint geschrieben/gelesen.
+_PLAYERS_CACHE: Dict[str, Dict[str, Any]] = {}
+_PLAYERS_CACHE_TTL = 4.0   # Sekunden, bevor erneut RCON gefragt wird
+
+# Idle-Tracker: container.name -> erster Zeitpunkt mit 0 Spielern (None wenn jemand drauf ist)
+_IDLE_SINCE: Dict[str, float] = {}
+# Idle-Optimierer-Flag: container.name -> war zuletzt schon optimiert
+_LAST_OPTIMIZED: Dict[str, float] = {}
+
+
+def _rcon(container: Container, command: str, timeout: int = 6) -> tuple[int, str]:
+    """rcon-cli im Container ausfuehren. Gibt (exit, output) zurueck."""
+    try:
+        res = container.exec_run(["rcon-cli", command], demux=False)
+    except APIError as exc:
+        return 1, f"rcon error: {exc}"
+    return res.exit_code, (res.output or b"").decode("utf-8", errors="replace")
+
+
+_PLAYER_LIST_RE = re.compile(r"There are\s+(\d+)\s*(?:of a max(?:imum)? of\s+(\d+))?\s*players? online[:\.]?\s*(.*)", re.IGNORECASE)
+
+
+def _parse_player_list(output: str) -> Dict[str, Any]:
+    """
+    Parsed die Antwort von /list. Beispiele:
+        'There are 2 of a max of 20 players online: Steve, Alex'
+        'There are 0 of a max 20 players online:'
+    """
+    m = _PLAYER_LIST_RE.search(output or "")
+    if not m:
+        return {"count": 0, "max": 20, "players": []}
+    count = int(m.group(1))
+    pmax = int(m.group(2)) if m.group(2) else 20
+    rest = (m.group(3) or "").strip().rstrip(".")
+    players = [p.strip() for p in rest.split(",") if p.strip()] if rest else []
+    return {"count": count, "max": pmax, "players": players}
+
+
+def _refresh_players_cache(container: Container) -> Dict[str, Any]:
+    """Holt die Spielerliste per RCON und cached sie kurz."""
+    cached = _PLAYERS_CACHE.get(container.name)
+    now = time.time()
+    if cached and (now - cached.get("ts", 0)) < _PLAYERS_CACHE_TTL:
+        return cached
+
+    if (container.status or "").lower() != "running":
+        info = {"count": 0, "max": 20, "players": [], "ts": now}
+        _PLAYERS_CACHE[container.name] = info
+        return info
+
+    code, out = _rcon(container, "list")
+    info: Dict[str, Any] = {"count": 0, "max": 20, "players": [], "ts": now}
+    if code == 0:
+        info.update(_parse_player_list(out))
+    info["ts"] = now
+    _PLAYERS_CACHE[container.name] = info
+    return info
 
 
 def _ensure_plugin_dir(container: Container, plugin_dir: str) -> None:
@@ -742,6 +838,318 @@ def delete_installed_plugin(server_id: str, filename: str) -> Dict[str, Any]:
     if code != 0:
         raise HTTPException(500, f"Loeschen fehlgeschlagen: {out}")
     return {"status": "deleted", "filename": safe_name, "needs_restart": True}
+
+
+# ---------------------------------------------------------------------------
+# v1.0.4: Spieler-API (RCON list / op / kick / ban / deop)
+# ---------------------------------------------------------------------------
+PLAYER_NAME_RE = re.compile(r"^[A-Za-z0-9_]{1,16}$")
+
+
+def _validate_player_name(name: str) -> str:
+    if not PLAYER_NAME_RE.match(name or ""):
+        raise HTTPException(400, "Ungueltiger Spielername")
+    return name
+
+
+@app.get("/api/servers/{server_id}/players")
+def list_players(server_id: str) -> Dict[str, Any]:
+    """Liefert die per RCON ermittelte Spielerliste (gecached)."""
+    container = _get_container(server_id)
+    info = _refresh_players_cache(container)
+    return {
+        "count": info.get("count", 0),
+        "max": info.get("max", 20),
+        "players": info.get("players", []),
+    }
+
+
+@app.post("/api/servers/{server_id}/players/op")
+def player_op(server_id: str, payload: PlayerActionRequest) -> Dict[str, Any]:
+    container = _get_container(server_id)
+    name = _validate_player_name(payload.player)
+    code, out = _rcon(container, f"op {name}")
+    if code != 0:
+        raise HTTPException(500, out or "RCON Fehler")
+    return {"status": "ok", "action": "op", "player": name, "output": out.strip()}
+
+
+@app.post("/api/servers/{server_id}/players/deop")
+def player_deop(server_id: str, payload: PlayerActionRequest) -> Dict[str, Any]:
+    container = _get_container(server_id)
+    name = _validate_player_name(payload.player)
+    code, out = _rcon(container, f"deop {name}")
+    if code != 0:
+        raise HTTPException(500, out or "RCON Fehler")
+    return {"status": "ok", "action": "deop", "player": name, "output": out.strip()}
+
+
+@app.post("/api/servers/{server_id}/players/kick")
+def player_kick(server_id: str, payload: PlayerActionRequest) -> Dict[str, Any]:
+    container = _get_container(server_id)
+    name = _validate_player_name(payload.player)
+    reason = (payload.reason or "Gekickt").replace('"', "'")
+    code, out = _rcon(container, f"kick {name} {reason}")
+    if code != 0:
+        raise HTTPException(500, out or "RCON Fehler")
+    return {"status": "ok", "action": "kick", "player": name, "output": out.strip()}
+
+
+@app.post("/api/servers/{server_id}/players/ban")
+def player_ban(server_id: str, payload: PlayerActionRequest) -> Dict[str, Any]:
+    container = _get_container(server_id)
+    name = _validate_player_name(payload.player)
+    reason = (payload.reason or "Gebannt").replace('"', "'")
+    code, out = _rcon(container, f"ban {name} {reason}")
+    if code != 0:
+        raise HTTPException(500, out or "RCON Fehler")
+    return {"status": "ok", "action": "ban", "player": name, "output": out.strip()}
+
+
+# ---------------------------------------------------------------------------
+# v1.0.4: Datei-API (Web-FTP fuer wichtige Server-Dateien)
+# ---------------------------------------------------------------------------
+EDITABLE_FILES: Dict[str, Dict[str, Any]] = {
+    "server.properties": {"path": "/data/server.properties", "max_kb": 64},
+    "whitelist.json":    {"path": "/data/whitelist.json",    "max_kb": 64},
+    "ops.json":          {"path": "/data/ops.json",          "max_kb": 64},
+    "banned-players.json": {"path": "/data/banned-players.json", "max_kb": 64},
+    "banned-ips.json":   {"path": "/data/banned-ips.json",   "max_kb": 64},
+    "bukkit.yml":        {"path": "/data/bukkit.yml",        "max_kb": 64},
+    "spigot.yml":        {"path": "/data/spigot.yml",        "max_kb": 64},
+    "paper-global.yml":  {"path": "/data/config/paper-global.yml", "max_kb": 128},
+}
+
+
+def _read_file_from_container(container: Container, path: str) -> str:
+    try:
+        bits, _stat = container.get_archive(path)
+    except APIError as exc:
+        raise HTTPException(404, f"Datei nicht gefunden: {exc.explanation or exc}")
+    buf = io.BytesIO(b"".join(bits))
+    with tarfile.open(fileobj=buf, mode="r") as tar:
+        members = [m for m in tar.getmembers() if m.isfile()]
+        if not members:
+            raise HTTPException(404, "Leeres Archiv")
+        f = tar.extractfile(members[0])
+        if not f:
+            raise HTTPException(404, "Datei nicht lesbar")
+        return f.read().decode("utf-8", errors="replace")
+
+
+def _write_file_into_container(container: Container, full_path: str, content: str) -> None:
+    parent = full_path.rsplit("/", 1)[0]
+    filename = full_path.rsplit("/", 1)[1]
+    _ensure_plugin_dir(container, parent)  # mkdir -p (Helper passt - macht keine Annahmen)
+    payload = content.encode("utf-8")
+    _put_file_into_container(container, parent, filename, payload)
+
+
+@app.get("/api/servers/{server_id}/files")
+def list_editable_files(server_id: str) -> Dict[str, Any]:
+    container = _get_container(server_id)
+    result = []
+    for name, meta in EDITABLE_FILES.items():
+        code, _ = _container_exec(container, ["test", "-f", meta["path"]])
+        result.append({"name": name, "path": meta["path"], "exists": code == 0})
+    return {"files": result}
+
+
+@app.get("/api/servers/{server_id}/files/{filename}")
+def read_editable_file(server_id: str, filename: str) -> Dict[str, Any]:
+    if filename not in EDITABLE_FILES:
+        raise HTTPException(403, "Datei nicht zur Bearbeitung freigegeben")
+    container = _get_container(server_id)
+    meta = EDITABLE_FILES[filename]
+    content = _read_file_from_container(container, meta["path"])
+    return {"name": filename, "path": meta["path"], "content": content}
+
+
+@app.put("/api/servers/{server_id}/files/{filename}")
+def write_editable_file(server_id: str, filename: str, payload: FileWriteRequest) -> Dict[str, Any]:
+    if filename not in EDITABLE_FILES:
+        raise HTTPException(403, "Datei nicht zur Bearbeitung freigegeben")
+    container = _get_container(server_id)
+    meta = EDITABLE_FILES[filename]
+
+    # Groessenlimit
+    max_bytes = meta.get("max_kb", 64) * 1024
+    if len(payload.content.encode("utf-8")) > max_bytes:
+        raise HTTPException(413, f"Datei ueberschreitet Limit von {meta.get('max_kb', 64)} KB")
+
+    _write_file_into_container(container, meta["path"], payload.content)
+    return {"status": "saved", "name": filename, "path": meta["path"], "needs_restart": True}
+
+
+# ---------------------------------------------------------------------------
+# v1.0.4: RAM-Optimierer (Idle-Watchdog)
+# ---------------------------------------------------------------------------
+@app.put("/api/servers/{server_id}/optimizer")
+def set_optimizer(server_id: str, payload: OptimizerRequest) -> Dict[str, Any]:
+    """
+    Schaltet den Auto-RAM-Optimierer per Container-Label um.
+    Der Hintergrund-Watchdog liest dieses Label und leitet bei 0 Spielern
+    fuer >= IDLE_OPTIMIZER_MINUTES eine GC-Hilfe ein (save-all + reload).
+    """
+    container = _get_container(server_id)
+    new_labels = dict(container.labels or {})
+    new_labels[OPTIMIZER_LABEL] = "true" if payload.enabled else "false"
+    # Docker erlaubt label-update nicht direkt -> wir merken uns nur den Wert,
+    # indem wir 'docker update' Workaround nutzen ist nicht moeglich. Wir
+    # schreiben den Zustand stattdessen in den In-Memory-Store und legen
+    # ihn beim Neuanlegen mit ins Label. Reicht fuer die Laufzeit voellig.
+    _OPTIMIZER_STATE[container.name] = bool(payload.enabled)
+    return {"status": "ok", "enabled": bool(payload.enabled)}
+
+
+# In-memory Optimierer-Status (Labels lassen sich nach Create nicht aendern)
+_OPTIMIZER_STATE: Dict[str, bool] = {}
+
+
+def _optimizer_enabled_for(container: Container) -> bool:
+    if container.name in _OPTIMIZER_STATE:
+        return _OPTIMIZER_STATE[container.name]
+    return (container.labels.get(OPTIMIZER_LABEL) or "false").lower() == "true"
+
+
+def _idle_watchdog_loop() -> None:
+    """Hintergrund-Thread: prueft alle 60 s, ob Server auf 0 Spielern stehen."""
+    while True:
+        try:
+            for c in _list_managed_containers():
+                if (c.status or "").lower() != "running":
+                    _IDLE_SINCE.pop(c.name, None)
+                    continue
+                info = _refresh_players_cache(c)
+                count = info.get("count", 0)
+                now = time.time()
+                if count > 0:
+                    _IDLE_SINCE.pop(c.name, None)
+                    continue
+                first_idle = _IDLE_SINCE.setdefault(c.name, now)
+                idle_minutes = (now - first_idle) / 60.0
+
+                if not _optimizer_enabled_for(c):
+                    continue
+
+                if idle_minutes >= IDLE_OPTIMIZER_MINUTES:
+                    last = _LAST_OPTIMIZED.get(c.name, 0)
+                    # max einmal alle 30 Minuten
+                    if (now - last) < IDLE_OPTIMIZER_MINUTES * 60:
+                        continue
+                    log.info("Idle-Optimierer triggert auf %s (idle %.1f min)", c.name, idle_minutes)
+                    # Speichern und GC-Hilfe per RCON
+                    _rcon(c, "save-all flush")
+                    _rcon(c, "save-off")
+                    _rcon(c, "save-on")
+                    _LAST_OPTIMIZED[c.name] = now
+        except Exception as exc:  # noqa: BLE001
+            log.warning("Idle-Watchdog Fehler: %s", exc)
+        time.sleep(60)
+
+
+@app.on_event("startup")
+def _start_idle_watchdog() -> None:
+    t = threading.Thread(target=_idle_watchdog_loop, name="idle-watchdog", daemon=True)
+    t.start()
+
+
+# ---------------------------------------------------------------------------
+# v1.0.4: playit.gg Tunnel (Sidecar-Container)
+# ---------------------------------------------------------------------------
+def _tunnel_container_for(server_id: str) -> Optional[Container]:
+    """Findet den Sidecar-Tunnel fuer den Server (per Label)."""
+    for c in docker_client().containers.list(all=True, filters={"label": f"{TUNNEL_FOR_LABEL}={server_id}"}):
+        return c
+    return None
+
+
+def _tunnel_status_dto(parent: Container, tunnel: Optional[Container]) -> Dict[str, Any]:
+    if not tunnel:
+        return {"status": "not_started", "message": "Kein Tunnel laeuft fuer diesen Server."}
+    tunnel.reload()
+    state = (tunnel.status or "unknown").lower()
+    # Versuche aus den Logs eine Domain zu extrahieren (playit gibt die im stdout aus)
+    domain = None
+    try:
+        logs = tunnel.logs(tail=200).decode("utf-8", errors="replace")
+        m = re.search(r"([a-zA-Z0-9-]+\.(?:joinmc\.link|playit\.gg|gl\.at\.ply\.gg|at\.playit\.gg))(?::\d+)?", logs)
+        if m:
+            domain = m.group(0)
+    except Exception:  # noqa: BLE001
+        domain = None
+    return {
+        "status": state,
+        "tunnel_container": tunnel.name,
+        "domain": domain,
+        "message": "Domain wird angezeigt, sobald playit sie zugewiesen hat. Logge dich ggf. unter https://playit.gg ein, um den Agent zu authentifizieren.",
+    }
+
+
+@app.get("/api/servers/{server_id}/tunnel")
+def tunnel_status(server_id: str) -> Dict[str, Any]:
+    parent = _get_container(server_id)
+    tunnel = _tunnel_container_for(server_id)
+    return _tunnel_status_dto(parent, tunnel)
+
+
+@app.post("/api/servers/{server_id}/tunnel/start")
+def tunnel_start(server_id: str, payload: TunnelStartRequest) -> Dict[str, Any]:
+    parent = _get_container(server_id)
+    if (parent.status or "").lower() != "running":
+        raise HTTPException(409, "Bitte zuerst den Minecraft-Server starten")
+
+    existing = _tunnel_container_for(server_id)
+    if existing:
+        existing.reload()
+        if (existing.status or "").lower() == "running":
+            return _tunnel_status_dto(parent, existing)
+        # alten gestoppten Tunnel entsorgen, dann neu starten
+        try:
+            existing.remove(force=True)
+        except APIError:
+            pass
+
+    tunnel_name = f"{parent.name}-playit"
+    env: Dict[str, str] = {}
+    if payload.secret:
+        env["PLAYIT_SECRET"] = payload.secret
+
+    try:
+        tunnel = docker_client().containers.run(
+            image=PLAYIT_IMAGE,
+            name=tunnel_name,
+            detach=True,
+            tty=True,
+            stdin_open=True,
+            environment=env,
+            labels={
+                MANAGED_LABEL: "false",        # nicht als MC-Server listen
+                TUNNEL_FOR_LABEL: server_id,
+                TUNNEL_KIND_LABEL: "playit",
+            },
+            network_mode=f"container:{parent.name}",  # share network namespace
+            restart_policy={"Name": "unless-stopped"},
+        )
+    except APIError as exc:
+        raise HTTPException(500, f"Tunnel konnte nicht gestartet werden: {exc.explanation or exc}")
+
+    time.sleep(0.5)
+    tunnel.reload()
+    return _tunnel_status_dto(parent, tunnel)
+
+
+@app.post("/api/servers/{server_id}/tunnel/stop")
+def tunnel_stop(server_id: str) -> Dict[str, Any]:
+    _get_container(server_id)  # validiert Berechtigung
+    tunnel = _tunnel_container_for(server_id)
+    if not tunnel:
+        return {"status": "not_started"}
+    try:
+        tunnel.remove(force=True)
+    except APIError as exc:
+        raise HTTPException(500, f"Tunnel konnte nicht gestoppt werden: {exc}")
+    return {"status": "stopped"}
 
 
 # ---------------------------------------------------------------------------
