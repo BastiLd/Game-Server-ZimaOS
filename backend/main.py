@@ -345,13 +345,15 @@ def create_server(payload: ServerCreate) -> Dict[str, Any]:
     return _container_to_dto(container, with_stats=False)
 
 
-@app.delete("/api/servers/{server_id}", status_code=204)
-def delete_server(server_id: str, purge: bool = False) -> None:
+@app.delete("/api/servers/{server_id}")
+def delete_server(server_id: str, purge: bool = False) -> Dict[str, Any]:
     c = _get_container(server_id)
+    name = c.name
     try:
         c.remove(force=True, v=purge)
     except APIError as exc:
         raise HTTPException(500, f"Loeschen fehlgeschlagen: {exc}")
+    return {"status": "deleted", "id": name, "purge": purge}
 
 
 # -------- API: Power --------------------------------------------------------
