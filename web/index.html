@@ -1,0 +1,3190 @@
+<!DOCTYPE html>
+<html lang="de" data-theme="nether">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CraftControl // Ultimate Game Server Manager</title>
+    <!-- Google Fonts: Outfit (UI) and JetBrains Mono (Terminal) -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+    
+    <style>
+        /* ==========================================================================
+           1. DESIGN SYSTEM & VARIABLE THEMES (HSL-tailored palettes)
+           ========================================================================== */
+        
+        /* 1.1 DEFAULT THEME: Nether Core (Obsidian Dark with Magma Glowing Accents) */
+        :root {
+            --bg-primary: hsl(225, 18%, 6%);
+            --bg-secondary: hsla(225, 15%, 11%, 0.75);
+            --bg-tertiary: hsl(225, 12%, 16%);
+            --bg-glass: hsla(225, 15%, 11%, 0.45);
+            --border-glass: hsla(225, 15%, 25%, 0.3);
+            
+            --accent-color: hsl(16, 100%, 55%);
+            --accent-hover: hsl(16, 100%, 65%);
+            --accent-glow: hsla(16, 100%, 55%, 0.35);
+            
+            --text-main: hsl(210, 20%, 96%);
+            --text-muted: hsl(218, 12%, 65%);
+            --text-on-accent: hsl(225, 18%, 6%);
+            
+            --status-online: hsl(142, 76%, 45%);
+            --status-online-glow: hsla(142, 76%, 45%, 0.4);
+            --status-offline: hsl(354, 78%, 53%);
+            --status-offline-glow: hsla(354, 78%, 53%, 0.4);
+            --status-idle: hsl(45, 100%, 50%);
+            --status-idle-glow: hsla(45, 100%, 50%, 0.4);
+
+            --card-shadow: 0 12px 40px -10px rgba(0, 0, 0, 0.6);
+            --glow-filter: drop-shadow(0 0 8px var(--accent-glow));
+            --radius-lg: 16px;
+            --radius-md: 10px;
+            --radius-sm: 6px;
+            --transition-speed: 0.3s;
+            --font-ui: 'Outfit', sans-serif;
+            --font-mono: 'JetBrains Mono', monospace;
+        }
+
+        /* 1.2 THEME 2: End Void (Mystic Deep Purple & Endstone Pale Gold Accents) */
+        [data-theme="end-void"] {
+            --bg-primary: hsl(276, 25%, 5%);
+            --bg-secondary: hsla(276, 20%, 9%, 0.75);
+            --bg-tertiary: hsl(276, 15%, 15%);
+            --bg-glass: hsla(276, 20%, 9%, 0.45);
+            --border-glass: hsla(276, 18%, 24%, 0.3);
+            
+            --accent-color: hsl(48, 89%, 60%);
+            --accent-hover: hsl(48, 89%, 70%);
+            --accent-glow: hsla(48, 89%, 60%, 0.3);
+            
+            --text-main: hsl(276, 10%, 95%);
+            --text-muted: hsl(276, 8%, 68%);
+            --text-on-accent: hsl(276, 30%, 8%);
+            
+            --status-online: hsl(285, 90%, 65%);
+            --status-online-glow: hsla(285, 90%, 65%, 0.45);
+            
+            --card-shadow: 0 12px 45px -8px rgba(0, 0, 0, 0.7);
+        }
+
+        /* 1.3 THEME 3: Overworld (Vibrant Forest & Grassy Hills Light Mode) */
+        [data-theme="overworld"] {
+            --bg-primary: hsl(120, 15%, 96%);
+            --bg-secondary: hsla(120, 10%, 90%, 0.85);
+            --bg-tertiary: hsl(120, 10%, 83%);
+            --bg-glass: hsla(120, 10%, 90%, 0.55);
+            --border-glass: hsla(120, 8%, 70%, 0.4);
+            
+            --accent-color: hsl(142, 64%, 34%);
+            --accent-hover: hsl(142, 64%, 28%);
+            --accent-glow: hsla(142, 64%, 34%, 0.25);
+            
+            --text-main: hsl(120, 24%, 10%);
+            --text-muted: hsl(120, 8%, 40%);
+            --text-on-accent: hsl(120, 15%, 98%);
+            
+            --status-online: hsl(142, 70%, 40%);
+            --status-online-glow: hsla(142, 70%, 40%, 0.3);
+            --status-offline: hsl(354, 70%, 45%);
+            --status-offline-glow: hsla(354, 70%, 45%, 0.3);
+            
+            --card-shadow: 0 10px 30px -10px rgba(40, 60, 40, 0.15);
+        }
+
+        /* 1.4 THEME 4: Cyberpunk Redstone (High Contrast Grid & Glowing Neon Red) */
+        [data-theme="cyberpunk"] {
+            --bg-primary: hsl(0, 0%, 3%);
+            --bg-secondary: hsla(355, 30%, 8%, 0.75);
+            --bg-tertiary: hsl(355, 20%, 14%);
+            --bg-glass: hsla(355, 30%, 8%, 0.5);
+            --border-glass: hsla(355, 80%, 50%, 0.25);
+            
+            --accent-color: hsl(355, 100%, 55%);
+            --accent-hover: hsl(355, 100%, 65%);
+            --accent-glow: hsla(355, 100%, 55%, 0.5);
+            
+            --text-main: hsl(0, 0%, 98%);
+            --text-muted: hsl(355, 10%, 62%);
+            --text-on-accent: hsl(0, 0%, 100%);
+            
+            --status-online: hsl(186, 100%, 50%);
+            --status-online-glow: hsla(186, 100%, 50%, 0.5);
+            
+            --card-shadow: 0 0 30px rgba(255, 0, 40, 0.15);
+        }
+
+        /* ==========================================================================
+           2. GLOBAL RESET & SCROLLBARS
+           ========================================================================== */
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            user-select: none;
+            -webkit-user-drag: none;
+        }
+
+        body {
+            font-family: var(--font-ui);
+            background-color: var(--bg-primary);
+            background-image: 
+                radial-gradient(at 0% 0%, var(--bg-secondary) 0px, transparent 50%),
+                radial-gradient(at 100% 100%, var(--accent-glow) 0px, transparent 70%);
+            background-attachment: fixed;
+            color: var(--text-main);
+            min-height: 100vh;
+            overflow-x: hidden;
+            transition: background-color var(--transition-speed), color var(--transition-speed);
+        }
+
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: var(--bg-primary);
+        }
+        ::-webkit-scrollbar-thumb {
+            background: var(--bg-tertiary);
+            border-radius: 4px;
+            border: 2px solid var(--bg-primary);
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: var(--accent-color);
+        }
+
+        /* Typo settings */
+        h1, h2, h3, h4, h5, h6 {
+            font-weight: 700;
+            letter-spacing: -0.02em;
+        }
+
+        /* Glass Utility */
+        .glass-panel {
+            background: var(--bg-glass);
+            backdrop-filter: blur(16px) saturate(120%);
+            -webkit-backdrop-filter: blur(16px) saturate(120%);
+            border: 1px solid var(--border-glass);
+            box-shadow: var(--card-shadow);
+            border-radius: var(--radius-lg);
+        }
+
+        /* ==========================================================================
+           3. NAVIGATION & HEADER
+           ========================================================================== */
+        .main-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 1.5rem 2rem;
+            margin: 1.5rem auto;
+            max-width: 1400px;
+            width: calc(100% - 4rem);
+        }
+
+        @media (max-width: 768px) {
+            .main-header {
+                flex-direction: column;
+                gap: 1rem;
+                width: calc(100% - 2rem);
+                padding: 1rem;
+                margin: 1rem auto;
+            }
+        }
+
+        .brand {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            cursor: pointer;
+        }
+
+        .brand-logo {
+            width: 42px;
+            height: 42px;
+            background: linear-gradient(135deg, var(--accent-color), var(--text-main));
+            border-radius: var(--radius-md);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 0 20px var(--accent-glow);
+            transition: transform 0.5s ease;
+        }
+
+        .brand:hover .brand-logo {
+            transform: rotate(360deg);
+        }
+
+        .brand h1 {
+            font-size: 1.5rem;
+            font-weight: 800;
+            background: linear-gradient(to right, var(--text-main) 30%, var(--accent-color));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        /* Theme Swapper */
+        .theme-picker {
+            display: flex;
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-glass);
+            border-radius: 50px;
+            padding: 4px;
+            gap: 4px;
+        }
+
+        .theme-btn {
+            background: transparent;
+            border: none;
+            color: var(--text-muted);
+            padding: 8px 16px;
+            border-radius: 50px;
+            cursor: pointer;
+            font-size: 0.85rem;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            transition: all 0.25s ease;
+        }
+
+        .theme-btn:hover {
+            color: var(--text-main);
+        }
+
+        .theme-btn.active {
+            background: var(--accent-color);
+            color: var(--text-on-accent);
+            box-shadow: 0 4px 15px var(--accent-glow);
+        }
+
+        /* ==========================================================================
+           4. VIEW TOGGLING AND TRANSITIONS
+           ========================================================================== */
+        .view-container {
+            max-width: 1400px;
+            margin: 0 auto 3rem auto;
+            padding: 0 2rem;
+            width: 100%;
+        }
+
+        @media (max-width: 768px) {
+            .view-container {
+                padding: 0 1rem;
+            }
+        }
+
+        .view-section {
+            display: none;
+            animation: fadeInUp 0.5s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+        }
+
+        .view-section.active {
+            display: block;
+        }
+
+        @keyframes fadeInUp {
+            from {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        /* ==========================================================================
+           5. SERVER OVERVIEW SCREEN
+           ========================================================================== */
+        
+        /* Stats Dashboard Bar */
+        .overview-stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+            gap: 1.5rem;
+            margin-bottom: 2rem;
+        }
+
+        .stat-card {
+            padding: 1.25rem 1.5rem;
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+        }
+
+        .stat-icon {
+            width: 48px;
+            height: 48px;
+            border-radius: var(--radius-md);
+            background: var(--bg-tertiary);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: var(--accent-color);
+        }
+
+        .stat-info h4 {
+            font-size: 0.85rem;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        .stat-info p {
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: var(--text-main);
+        }
+
+        /* Server Cards Grid */
+        .server-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+            gap: 1.75rem;
+        }
+
+        .server-card {
+            padding: 1.75rem;
+            position: relative;
+            cursor: pointer;
+            transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            min-height: 280px;
+        }
+
+        .server-card:hover {
+            transform: translateY(-8px);
+            border-color: var(--accent-color);
+            box-shadow: 0 15px 30px rgba(0, 0, 0, 0.4), 0 0 15px var(--accent-glow);
+        }
+
+        /* Pulsing Glow borders depending on status */
+        .server-card.running {
+            box-shadow: 0 8px 30px -10px var(--status-online-glow);
+        }
+        .server-card.starting {
+            box-shadow: 0 8px 30px -10px var(--status-idle-glow);
+        }
+
+        .server-card-top {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: 1rem;
+        }
+
+        .server-icon {
+            width: 54px;
+            height: 54px;
+            border-radius: var(--radius-md);
+            background: var(--bg-tertiary);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border: 1px solid var(--border-glass);
+            transition: all 0.3s ease;
+        }
+
+        .server-card:hover .server-icon {
+            border-color: var(--accent-color);
+            transform: scale(1.05);
+        }
+
+        .status-badge {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            padding: 4px 10px;
+            border-radius: 20px;
+            font-size: 0.75rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            background: var(--bg-tertiary);
+        }
+
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: var(--status-offline);
+            box-shadow: 0 0 8px var(--status-offline-glow);
+        }
+
+        .running .status-dot {
+            background: var(--status-online);
+            box-shadow: 0 0 10px var(--status-online-glow);
+            animation: pulse-green 1.5s infinite;
+        }
+
+        .starting .status-dot {
+            background: var(--status-idle);
+            box-shadow: 0 0 10px var(--status-idle-glow);
+            animation: pulse-yellow 1s infinite;
+        }
+
+        @keyframes pulse-green {
+            0% { transform: scale(0.9); box-shadow: 0 0 0 0 var(--status-online-glow); }
+            70% { transform: scale(1.1); box-shadow: 0 0 0 8px transparent; }
+            100% { transform: scale(0.9); box-shadow: 0 0 0 0 transparent; }
+        }
+
+        @keyframes pulse-yellow {
+            0% { transform: scale(0.95); opacity: 0.6; }
+            50% { transform: scale(1.05); opacity: 1; }
+            100% { transform: scale(0.95); opacity: 0.6; }
+        }
+
+        .server-card-info {
+            margin-bottom: 1.5rem;
+        }
+
+        .server-card-info h3 {
+            font-size: 1.25rem;
+            font-weight: 700;
+            margin-bottom: 0.25rem;
+            color: var(--text-main);
+        }
+
+        .server-card-info p {
+            font-size: 0.85rem;
+            color: var(--text-muted);
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .badge-software {
+            background: var(--bg-tertiary);
+            color: var(--accent-color);
+            padding: 2px 6px;
+            border-radius: var(--radius-sm);
+            font-size: 0.7rem;
+            font-weight: 700;
+            border: 1px solid rgba(255,255,255,0.05);
+        }
+
+        /* Realtime Quick Stats inside cards */
+        .server-card-meters {
+            border-top: 1px solid var(--border-glass);
+            padding-top: 1rem;
+            margin-bottom: 1.5rem;
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+        }
+
+        .meter-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            font-size: 0.75rem;
+            color: var(--text-muted);
+        }
+
+        .meter-label {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+
+        .meter-bar-container {
+            width: 100px;
+            height: 6px;
+            background: var(--bg-tertiary);
+            border-radius: 4px;
+            overflow: hidden;
+        }
+
+        .meter-bar-fill {
+            height: 100%;
+            width: 0%;
+            background: var(--accent-color);
+            transition: width 0.5s ease;
+        }
+
+        .running .meter-bar-fill {
+            background: var(--status-online);
+        }
+
+        .server-card-actions {
+            display: flex;
+            gap: 0.75rem;
+            align-items: center;
+        }
+
+        /* Premium Buttons */
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            padding: 10px 18px;
+            border-radius: var(--radius-md);
+            font-weight: 600;
+            font-size: 0.9rem;
+            cursor: pointer;
+            border: none;
+            transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+            outline: none;
+        }
+
+        .btn-primary {
+            background: var(--accent-color);
+            color: var(--text-on-accent);
+            box-shadow: 0 4px 15px var(--accent-glow);
+        }
+
+        .btn-primary:hover {
+            background: var(--accent-hover);
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px var(--accent-glow);
+        }
+
+        .btn-secondary {
+            background: var(--bg-tertiary);
+            color: var(--text-main);
+            border: 1px solid var(--border-glass);
+        }
+
+        .btn-secondary:hover {
+            background: var(--bg-primary);
+            color: var(--accent-color);
+            border-color: var(--accent-color);
+        }
+
+        .btn-circle {
+            width: 38px;
+            height: 38px;
+            padding: 0;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .btn-danger {
+            background: hsla(354, 78%, 53%, 0.15);
+            color: var(--status-offline);
+            border: 1px solid rgba(255,0,0,0.2);
+        }
+
+        .btn-danger:hover {
+            background: var(--status-offline);
+            color: white;
+            box-shadow: 0 4px 15px var(--status-offline-glow);
+        }
+
+        .btn-success {
+            background: hsla(142, 76%, 45%, 0.15);
+            color: var(--status-online);
+            border: 1px solid rgba(0,255,0,0.2);
+        }
+
+        .btn-success:hover {
+            background: var(--status-online);
+            color: white;
+            box-shadow: 0 4px 15px var(--status-online-glow);
+        }
+
+        /* "Add Server" Plus Card */
+        .add-server-card {
+            border: 2px dashed var(--border-glass);
+            background: transparent;
+            border-radius: var(--radius-lg);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 1rem;
+            min-height: 280px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .add-server-card:hover {
+            border-color: var(--accent-color);
+            background: var(--bg-glass);
+            transform: translateY(-5px);
+        }
+
+        .plus-icon {
+            width: 64px;
+            height: 64px;
+            border-radius: 50%;
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-glass);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: var(--text-muted);
+            transition: all 0.3s ease;
+        }
+
+        .add-server-card:hover .plus-icon {
+            background: var(--accent-color);
+            color: var(--text-on-accent);
+            border-color: var(--accent-color);
+            box-shadow: 0 0 20px var(--accent-glow);
+            transform: scale(1.08);
+        }
+
+        .add-server-card span {
+            font-weight: 600;
+            color: var(--text-muted);
+            transition: color 0.3s ease;
+        }
+
+        .add-server-card:hover span {
+            color: var(--text-main);
+        }
+
+        /* ==========================================================================
+           6. MODAL INTERFACES
+           ========================================================================== */
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.7);
+            backdrop-filter: blur(8px);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.3s ease;
+        }
+
+        .modal-overlay.active {
+            opacity: 1;
+            pointer-events: all;
+        }
+
+        .modal-box {
+            width: 100%;
+            max-width: 500px;
+            padding: 2.25rem;
+            transform: scale(0.9);
+            transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+
+        .modal-overlay.active .modal-box {
+            transform: scale(1);
+        }
+
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1.5rem;
+        }
+
+        .modal-close {
+            background: transparent;
+            border: none;
+            color: var(--text-muted);
+            cursor: pointer;
+            font-size: 1.5rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: color 0.2s ease;
+        }
+
+        .modal-close:hover {
+            color: var(--text-main);
+        }
+
+        .form-group {
+            margin-bottom: 1.25rem;
+        }
+
+        .form-group label {
+            display: block;
+            font-size: 0.85rem;
+            font-weight: 600;
+            color: var(--text-muted);
+            margin-bottom: 0.5rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        .form-control {
+            width: 100%;
+            background: var(--bg-tertiary);
+            border: 1px solid var(--border-glass);
+            border-radius: var(--radius-md);
+            padding: 12px 16px;
+            color: var(--text-main);
+            font-family: var(--font-ui);
+            font-size: 0.95rem;
+            outline: none;
+            transition: all 0.2s ease;
+        }
+
+        .form-control:focus {
+            border-color: var(--accent-color);
+            box-shadow: 0 0 10px var(--accent-glow);
+        }
+
+        /* RAM Slider */
+        .range-container {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+        }
+
+        .range-slider {
+            flex-grow: 1;
+            accent-color: var(--accent-color);
+        }
+
+        .range-value {
+            font-weight: 700;
+            font-size: 1.1rem;
+            color: var(--accent-color);
+            min-width: 60px;
+            text-align: right;
+        }
+
+        /* ==========================================================================
+           7. SERVER DASHBOARD PAGE (GRID LAYOUT & SIDEBAR)
+           ========================================================================== */
+        .dashboard-layout {
+            display: grid;
+            grid-template-columns: 280px 1fr;
+            gap: 2rem;
+            align-items: start;
+        }
+
+        @media (max-width: 992px) {
+            .dashboard-layout {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        /* Sidebar Styling */
+        .dash-sidebar {
+            display: flex;
+            flex-direction: column;
+            gap: 1.5rem;
+        }
+
+        .dash-server-meta {
+            padding: 1.5rem;
+            text-align: center;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        .dash-server-meta .server-icon {
+            margin-bottom: 1rem;
+            width: 72px;
+            height: 72px;
+        }
+
+        .dash-server-meta h2 {
+            font-size: 1.35rem;
+            margin-bottom: 0.25rem;
+        }
+
+        .dash-server-meta p {
+            font-size: 0.85rem;
+            color: var(--text-muted);
+            margin-bottom: 0.75rem;
+        }
+
+        /* Sidebar Navigation Menu */
+        .dash-nav {
+            list-style: none;
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+
+        .dash-nav-btn {
+            width: 100%;
+            padding: 12px 18px;
+            border-radius: var(--radius-md);
+            background: transparent;
+            border: none;
+            color: var(--text-muted);
+            font-family: var(--font-ui);
+            font-weight: 500;
+            font-size: 0.95rem;
+            text-align: left;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            transition: all 0.2s ease;
+        }
+
+        .dash-nav-btn svg {
+            width: 20px;
+            height: 20px;
+            transition: transform 0.2s ease;
+        }
+
+        .dash-nav-btn:hover {
+            color: var(--text-main);
+            background: rgba(255,255,255,0.03);
+        }
+
+        .dash-nav-btn:hover svg {
+            transform: translateX(3px);
+        }
+
+        .dash-nav-btn.active {
+            background: var(--accent-color);
+            color: var(--text-on-accent);
+            font-weight: 600;
+            box-shadow: 0 4px 15px var(--accent-glow);
+        }
+
+        .dash-nav-btn.active svg {
+            color: var(--text-on-accent);
+        }
+
+        /* Main Dashboard Content Area */
+        .dash-content {
+            display: flex;
+            flex-direction: column;
+            gap: 1.75rem;
+        }
+
+        /* Dashboard Header */
+        .dash-header-panel {
+            padding: 1.25rem 1.75rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 1.5rem;
+        }
+
+        @media (max-width: 576px) {
+            .dash-header-panel {
+                flex-direction: column;
+                align-items: flex-start;
+            }
+        }
+
+        .dash-header-left {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+        }
+
+        /* Tab Layout panels */
+        .tab-panel {
+            display: none;
+            animation: fadeIn 0.4s ease forwards;
+        }
+
+        .tab-panel.active {
+            display: block;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+
+        /* ==========================================================================
+           8. TAB 1: STATUS & LIVE CONSOLE
+           ========================================================================== */
+        
+        /* Dashboard Stats row */
+        .dash-stats-row {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 1.5rem;
+            margin-bottom: 1.75rem;
+        }
+
+        @media (max-width: 768px) {
+            .dash-stats-row {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        /* Live console styling */
+        .console-container {
+            display: flex;
+            flex-direction: column;
+            height: 380px;
+            overflow: hidden;
+            border-radius: var(--radius-lg);
+            background: #06080e;
+            border: 1px solid var(--border-glass);
+            box-shadow: inset 0 4px 20px rgba(0,0,0,0.8);
+        }
+
+        [data-theme="overworld"] .console-container {
+            background: #0f140f;
+        }
+
+        .console-header {
+            background: rgba(255,255,255,0.03);
+            padding: 10px 16px;
+            border-bottom: 1px solid rgba(255,255,255,0.08);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 0.8rem;
+            color: var(--text-muted);
+        }
+
+        .console-header-actions {
+            display: flex;
+            gap: 10px;
+        }
+
+        .console-dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background: #ff5f56;
+        }
+        .console-dot:nth-child(2) { background: #ffbd2e; }
+        .console-dot:nth-child(3) { background: #27c93f; }
+
+        .console-logs {
+            flex-grow: 1;
+            padding: 16px;
+            overflow-y: auto;
+            font-family: var(--font-mono);
+            font-size: 0.85rem;
+            color: #d8dee9;
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+            line-height: 1.4;
+        }
+
+        /* Custom syntax coloring for console */
+        .log-entry {
+            word-break: break-all;
+        }
+
+        .log-time {
+            color: #5e81ac;
+            margin-right: 6px;
+        }
+
+        .log-info {
+            color: #8fbcbb;
+        }
+
+        .log-warn {
+            color: #ebcb8b;
+            font-weight: 600;
+        }
+
+        .log-error {
+            color: #bf616a;
+            font-weight: 700;
+            background: rgba(191, 97, 106, 0.1);
+            padding: 1px 4px;
+            border-radius: 2px;
+        }
+
+        .log-command {
+            color: #a3be8c;
+            font-weight: 600;
+        }
+
+        .log-system {
+            color: var(--accent-color);
+            font-weight: bold;
+        }
+
+        /* Command Input Panel */
+        .console-input-bar {
+            display: flex;
+            background: rgba(0,0,0,0.3);
+            border-top: 1px solid rgba(255,255,255,0.08);
+            padding: 8px 12px;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .console-prompt-indicator {
+            font-family: var(--font-mono);
+            font-weight: 700;
+            color: var(--accent-color);
+        }
+
+        .console-input {
+            flex-grow: 1;
+            background: transparent;
+            border: none;
+            outline: none;
+            color: #fff;
+            font-family: var(--font-mono);
+            font-size: 0.9rem;
+            padding: 6px 0;
+        }
+
+        /* ==========================================================================
+           9. TAB 2: SOFTWARE & VERSIONS
+           ========================================================================== */
+        .software-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 1.25rem;
+            margin-bottom: 1.75rem;
+        }
+
+        .software-card {
+            padding: 1.5rem;
+            text-align: center;
+            cursor: pointer;
+            border: 1px solid var(--border-glass);
+            border-radius: var(--radius-md);
+            background: rgba(255,255,255,0.01);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 0.75rem;
+            transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+
+        .software-card svg {
+            width: 48px;
+            height: 48px;
+            color: var(--text-muted);
+            transition: all 0.3s ease;
+        }
+
+        .software-card:hover {
+            background: rgba(255,255,255,0.03);
+            border-color: var(--accent-color);
+            transform: scale(1.02);
+        }
+
+        .software-card.active {
+            background: var(--bg-tertiary);
+            border-color: var(--accent-color);
+            box-shadow: 0 0 15px var(--accent-glow);
+        }
+
+        .software-card.active svg {
+            color: var(--accent-color);
+            filter: var(--glow-filter);
+        }
+
+        .software-card h4 {
+            font-size: 1rem;
+            font-weight: 700;
+        }
+
+        .software-card p {
+            font-size: 0.75rem;
+            color: var(--text-muted);
+            line-height: 1.3;
+        }
+
+        /* Config Form area */
+        .version-form {
+            padding: 1.75rem;
+            display: flex;
+            flex-direction: column;
+            gap: 1.5rem;
+        }
+
+        .version-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1.5rem;
+        }
+
+        @media (max-width: 576px) {
+            .version-row {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        /* ==========================================================================
+           10. TAB 3: PLUGINS & MODS
+           ========================================================================== */
+        .plugins-layout {
+            display: grid;
+            grid-template-columns: 1fr 340px;
+            gap: 1.75rem;
+        }
+
+        @media (max-width: 992px) {
+            .plugins-layout {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .search-bar-container {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 1.25rem;
+        }
+
+        .search-input-wrapper {
+            position: relative;
+            flex-grow: 1;
+        }
+
+        .search-icon {
+            position: absolute;
+            left: 14px;
+            top: 50%;
+            transform: translateY(-50%);
+            color: var(--text-muted);
+            width: 18px;
+            height: 18px;
+        }
+
+        .search-control {
+            width: 100%;
+            padding-left: 42px;
+        }
+
+        /* Catalog list */
+        .plugin-catalog {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            max-height: 500px;
+            overflow-y: auto;
+            padding-right: 6px;
+        }
+
+        .plugin-item {
+            padding: 1rem 1.25rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 1rem;
+            border-radius: var(--radius-md);
+            background: rgba(255,255,255,0.02);
+            border: 1px solid var(--border-glass);
+            transition: all 0.25s ease;
+        }
+
+        .plugin-item:hover {
+            border-color: var(--border-glass);
+            background: rgba(255,255,255,0.04);
+        }
+
+        .plugin-info {
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+        }
+
+        .plugin-info h4 {
+            font-size: 1rem;
+            font-weight: 600;
+        }
+
+        .plugin-info p {
+            font-size: 0.8rem;
+            color: var(--text-muted);
+        }
+
+        .plugin-meta-row {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-top: 4px;
+        }
+
+        .tag-category {
+            background: var(--bg-tertiary);
+            color: var(--text-muted);
+            font-size: 0.65rem;
+            font-weight: 700;
+            padding: 2px 6px;
+            border-radius: 4px;
+            text-transform: uppercase;
+        }
+
+        /* Upload Container area */
+        .upload-section {
+            display: flex;
+            flex-direction: column;
+            gap: 1.5rem;
+        }
+
+        .upload-dropzone {
+            border: 2px dashed var(--border-glass);
+            border-radius: var(--radius-lg);
+            padding: 2.25rem 1.5rem;
+            text-align: center;
+            cursor: pointer;
+            background: rgba(255,255,255,0.01);
+            transition: all 0.25s ease;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 0.75rem;
+        }
+
+        .upload-dropzone:hover, .upload-dropzone.dragover {
+            border-color: var(--accent-color);
+            background: var(--bg-glass);
+        }
+
+        .upload-dropzone svg {
+            width: 42px;
+            height: 42px;
+            color: var(--text-muted);
+            transition: color 0.25s ease;
+        }
+
+        .upload-dropzone:hover svg {
+            color: var(--accent-color);
+        }
+
+        .upload-dropzone h4 {
+            font-size: 0.95rem;
+            color: var(--text-main);
+        }
+
+        .upload-dropzone p {
+            font-size: 0.75rem;
+            color: var(--text-muted);
+        }
+
+        /* Upload progress bar */
+        .upload-progress-container {
+            display: none;
+            padding: 1rem;
+            background: var(--bg-tertiary);
+            border: 1px solid var(--border-glass);
+            border-radius: var(--radius-md);
+            flex-direction: column;
+            gap: 6px;
+        }
+
+        .upload-progress-meta {
+            display: flex;
+            justify-content: space-between;
+            font-size: 0.75rem;
+            font-weight: 600;
+        }
+
+        .upload-progress-bar {
+            height: 8px;
+            background: var(--bg-primary);
+            border-radius: 4px;
+            overflow: hidden;
+        }
+
+        .upload-progress-fill {
+            height: 100%;
+            width: 0%;
+            background: var(--accent-color);
+            transition: width 0.1s linear;
+        }
+
+        /* Active Installed Plugins list */
+        .installed-plugins-list {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            max-height: 250px;
+            overflow-y: auto;
+        }
+
+        .installed-item {
+            padding: 8px 12px;
+            background: rgba(255,255,255,0.01);
+            border: 1px solid var(--border-glass);
+            border-radius: var(--radius-sm);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 0.85rem;
+        }
+
+        /* ==========================================================================
+           11. TAB 4: BACKUPS MANAGEMENT
+           ========================================================================== */
+        .backups-container {
+            display: flex;
+            flex-direction: column;
+            gap: 1.5rem;
+        }
+
+        .backups-toolbar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        /* Table design */
+        .table-responsive {
+            width: 100%;
+            overflow-x: auto;
+            border-radius: var(--radius-lg);
+            border: 1px solid var(--border-glass);
+            box-shadow: var(--card-shadow);
+        }
+
+        .data-table {
+            width: 100%;
+            border-collapse: collapse;
+            text-align: left;
+            background: var(--bg-glass);
+        }
+
+        .data-table th, .data-table td {
+            padding: 1.25rem;
+            border-bottom: 1px solid var(--border-glass);
+        }
+
+        .data-table th {
+            background: rgba(255, 255, 255, 0.03);
+            font-weight: 600;
+            font-size: 0.85rem;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        .data-table tr:last-child td {
+            border-bottom: none;
+        }
+
+        .data-table tbody tr {
+            transition: background-color 0.2s ease;
+        }
+
+        .data-table tbody tr:hover {
+            background: rgba(255, 255, 255, 0.015);
+        }
+
+        .backup-file-name {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-weight: 500;
+        }
+
+        /* Toast notification popup */
+        .toast-container {
+            position: fixed;
+            bottom: 2rem;
+            right: 2rem;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            z-index: 2000;
+        }
+
+        .toast-msg {
+            background: var(--bg-tertiary);
+            border-left: 4px solid var(--accent-color);
+            color: var(--text-main);
+            padding: 1rem 1.5rem;
+            border-radius: var(--radius-sm);
+            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            transform: translateX(120%);
+            animation: slideInToast 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+            font-size: 0.9rem;
+            font-weight: 500;
+        }
+
+        @keyframes slideInToast {
+            to { transform: translateX(0); }
+        }
+
+        .toast-msg.success { border-left-color: var(--status-online); }
+        .toast-msg.error { border-left-color: var(--status-offline); }
+        .toast-msg.warn { border-left-color: var(--status-idle); }
+    </style>
+</head>
+<body>
+
+    <!-- ==========================================================================
+       A. MAIN APP HEADER / THEME SWITCHER
+       ========================================================================== -->
+    <header class="main-header glass-panel">
+        <div class="brand" onclick="app.showOverview()">
+            <div class="brand-logo">
+                <!-- SVG Minecraft Logo Block / Pickaxe outline -->
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 2 22 9.5M16 4l4 4M2 22 9.5 14.5M4 16l4 4M10 8.5 15.5 3M8.5 10 3 15.5M14 14l5-5M9 19l5-5"/></svg>
+            </div>
+            <h1>CraftControl</h1>
+        </div>
+        
+        <!-- Theme-Picker: vorbereitet fuer einen spaeteren Theme-Store, aktuell deaktiviert.
+             Die CSS-Variablen sowie die data-theme Attribute bleiben aktiv und einsatzbereit. -->
+        <div class="theme-picker" hidden aria-hidden="true" style="display:none">
+            <button class="theme-btn active" onclick="app.switchTheme('nether')" id="theme-btn-nether">
+                <svg width="12" height="12" fill="currentColor" viewBox="0 0 16 16"><circle cx="8" cy="8" r="8"/></svg> Nether Core
+            </button>
+            <button class="theme-btn" onclick="app.switchTheme('end-void')" id="theme-btn-end-void">
+                <svg width="12" height="12" fill="currentColor" viewBox="0 0 16 16"><circle cx="8" cy="8" r="8"/></svg> End Void
+            </button>
+            <button class="theme-btn" onclick="app.switchTheme('overworld')" id="theme-btn-overworld">
+                <svg width="12" height="12" fill="currentColor" viewBox="0 0 16 16"><circle cx="8" cy="8" r="8"/></svg> Overworld
+            </button>
+            <button class="theme-btn" onclick="app.switchTheme('cyberpunk')" id="theme-btn-cyberpunk">
+                <svg width="12" height="12" fill="currentColor" viewBox="0 0 16 16"><circle cx="8" cy="8" r="8"/></svg> Redstone Grid
+            </button>
+        </div>
+    </header>
+
+    <!-- ==========================================================================
+       B. VIEW WRAPPER
+       ========================================================================== -->
+    <main class="view-container">
+
+        <!-- ==========================================================================
+           B.1 SERVER OVERVIEW SCREEN
+           ========================================================================== -->
+        <section id="view-overview" class="view-section active">
+            <!-- Summary stats panel -->
+            <div class="overview-stats">
+                <div class="stat-card glass-panel">
+                    <div class="stat-icon">
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="2" width="20" height="8" rx="2" ry="2"/><rect x="2" y="14" width="20" height="8" rx="2" ry="2"/><line x1="6" y1="6" x2="6.01" y2="6"/><line x1="6" y1="18" x2="6.01" y2="18"/></svg>
+                    </div>
+                    <div class="stat-info">
+                        <h4>Server Gesamt</h4>
+                        <p id="stat-total-servers">3</p>
+                    </div>
+                </div>
+                <div class="stat-card glass-panel">
+                    <div class="stat-icon" style="color: var(--status-online);">
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                    </div>
+                    <div class="stat-info">
+                        <h4>Aktiv Online</h4>
+                        <p id="stat-online-servers" style="color: var(--status-online);">2</p>
+                    </div>
+                </div>
+                <div class="stat-card glass-panel">
+                    <div class="stat-icon" style="color: var(--accent-color);">
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+                    </div>
+                    <div class="stat-info">
+                        <h4>Spieler Online</h4>
+                        <p id="stat-total-players">7 / 40</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Server grid -->
+            <div class="server-grid" id="server-list-container">
+                <!-- Rendered dynamically via JS -->
+            </div>
+        </section>
+
+
+        <!-- ==========================================================================
+           B.2 SERVER DASHBOARD SCREEN (TAB MANAGED)
+           ========================================================================== -->
+        <section id="view-dashboard" class="view-section">
+            <div class="dashboard-layout">
+                
+                <!-- Sidebar Layout Column -->
+                <div class="dash-sidebar">
+                    <div class="dash-server-meta glass-panel">
+                        <div class="server-icon" id="dash-server-icon">
+                            <!-- Injected by Server selection -->
+                        </div>
+                        <h2 id="dash-server-title">Survival Server</h2>
+                        <p id="dash-server-software-label">Spigot 1.20.4</p>
+                        <div class="status-badge" id="dash-server-badge">
+                            <span class="status-dot"></span>
+                            <span class="status-text">ONLINE</span>
+                        </div>
+                    </div>
+
+                    <!-- Sidebar Navigation menu -->
+                    <nav class="glass-panel" style="padding: 0.75rem;">
+                        <ul class="dash-nav">
+                            <li>
+                                <button class="dash-nav-btn active" onclick="app.switchTab('status')" id="tab-btn-status">
+                                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><line x1="9" y1="3" x2="9" y2="21"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="9" y1="14" x2="14" y2="9"/></svg>
+                                    Konsole & Status
+                                </button>
+                            </li>
+                            <li>
+                                <button class="dash-nav-btn" onclick="app.switchTab('software')" id="tab-btn-software">
+                                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>
+                                    Software / Version
+                                </button>
+                            </li>
+                            <li>
+                                <button class="dash-nav-btn" onclick="app.switchTab('plugins')" id="tab-btn-plugins">
+                                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg>
+                                    Plugins & Mods
+                                </button>
+                            </li>
+                            <li>
+                                <button class="dash-nav-btn" onclick="app.switchTab('backups')" id="tab-btn-backups">
+                                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 4v6h-6"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
+                                    Backup-Verlauf
+                                </button>
+                            </li>
+                        </ul>
+                    </nav>
+
+                    <button class="btn btn-secondary" onclick="app.showOverview()">
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg>
+                        Zurück zur Übersicht
+                    </button>
+                </div>
+
+                <!-- Main Dashboard Panels Column -->
+                <div class="dash-content">
+                    
+                    <!-- Global Dashboard Header Panel -->
+                    <div class="dash-header-panel glass-panel">
+                        <div class="dash-header-left">
+                            <h2 style="font-size: 1.5rem;" id="dash-header-status-text">Serversteuerung</h2>
+                        </div>
+                        <div style="display: flex; gap: 0.75rem;">
+                            <button class="btn btn-success" id="dash-btn-start" onclick="app.triggerActiveServerPower('start')">
+                                <svg width="16" height="16" fill="currentColor" viewBox="0 0 16 16"><path d="m11.596 8.697-6.363 3.692c-.54.313-1.233-.066-1.233-.697V4.308c0-.63.692-1.01 1.233-.696l6.363 3.692a.802.802 0 0 1 0 1.393z"/></svg> Starten
+                            </button>
+                            <button class="btn btn-danger" id="dash-btn-stop" onclick="app.triggerActiveServerPower('stop')">
+                                <svg width="16" height="16" fill="currentColor" viewBox="0 0 16 16"><path d="M5 3.5h6A1.5 1.5 0 0 1 12.5 5v6a1.5 1.5 0 0 1-1.5 1.5H5A1.5 1.5 0 0 1 3.5 11V5A1.5 1.5 0 0 1 5 3.5z"/></svg> Stoppen
+                            </button>
+                            <button class="btn btn-secondary" id="dash-btn-restart" onclick="app.triggerActiveServerPower('restart')">
+                                <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0l3.181 3.183a8.25 8.25 0 0013.803-3.7M4.031 9.865a8.25 8.25 0 0113.803-3.7l3.181 3.182m0-4.991v4.99"/></svg> Neustart
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Panel 1: Live Status & Console Terminal -->
+                    <div id="panel-status" class="tab-panel active">
+                        <!-- Gauges Area -->
+                        <div class="dash-stats-row">
+                            <div class="stat-card glass-panel">
+                                <div class="stat-icon" id="gauge-cpu-icon">
+                                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="4" width="16" height="16" rx="2" ry="2"/><rect x="9" y="9" width="6" height="6"/><line x1="9" y1="1" x2="9" y2="4"/><line x1="15" y1="1" x2="15" y2="4"/><line x1="9" y1="20" x2="9" y2="23"/><line x1="15" y1="20" x2="15" y2="23"/><line x1="20" y1="9" x2="23" y2="9"/><line x1="20" y1="15" x2="23" y2="15"/><line x1="1" y1="9" x2="4" y2="9"/><line x1="1" y1="15" x2="4" y2="15"/></svg>
+                                </div>
+                                <div class="stat-info">
+                                    <h4>CPU Auslastung</h4>
+                                    <p id="dash-gauge-cpu">0%</p>
+                                </div>
+                            </div>
+                            <div class="stat-card glass-panel">
+                                <div class="stat-icon" id="gauge-ram-icon">
+                                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 19h12V5H6v14z"/><path d="M10 5V2h4v3"/><path d="M7 19v3h2v-3"/><path d="M15 19v3h2v-3"/></svg>
+                                </div>
+                                <div class="stat-info">
+                                    <h4>RAM Belegung</h4>
+                                    <p id="dash-gauge-ram">0.0 / 8.0 GB</p>
+                                </div>
+                            </div>
+                            <div class="stat-card glass-panel">
+                                <div class="stat-icon" id="gauge-players-icon">
+                                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>
+                                </div>
+                                <div class="stat-info">
+                                    <h4>Spielerzahl</h4>
+                                    <p id="dash-gauge-players">0 / 20</p>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Console Box -->
+                        <div class="console-container">
+                            <div class="console-header">
+                                <div style="display:flex; gap:6px;">
+                                    <span class="console-dot"></span>
+                                    <span class="console-dot"></span>
+                                    <span class="console-dot"></span>
+                                </div>
+                                <div>craftcontrol@terminal:~ log-viewer</div>
+                                <div class="console-header-actions" style="cursor: pointer;" onclick="app.clearConsoleLogs()">
+                                    <span>[Konsole Leeren]</span>
+                                </div>
+                            </div>
+                            
+                            <!-- Logs lines injection -->
+                            <div class="console-logs" id="console-logs-pane">
+                                <!-- Injected by JS -->
+                            </div>
+
+                            <div class="console-input-bar">
+                                <span class="console-prompt-indicator">&gt;</span>
+                                <input type="text" class="console-input" id="console-cmd-input" placeholder="Minecraft-Befehl eingeben (z.B. /help, /op basti, /say hallo)..." autocomplete="off">
+                                <button class="btn btn-primary" style="padding:6px 12px; font-size:0.8rem;" onclick="app.submitConsoleCommand()">Senden</button>
+                            </div>
+                        </div>
+                    </div>
+
+
+                    <!-- Panel 2: Software / Versions Selection Grid -->
+                    <div id="panel-software" class="tab-panel">
+                        <div class="glass-panel" style="padding: 1.75rem;">
+                            <h3 style="margin-bottom: 0.5rem; font-size: 1.25rem;">Serversoftware wählen</h3>
+                            <p style="color: var(--text-muted); font-size: 0.9rem; margin-bottom: 1.5rem;">Wechsle die Minecraft-Engine deines Servers. Spigot, Paper und Fabric unterstützen Plugins/Mods.</p>
+                            
+                            <div class="software-grid" id="software-selector-cards">
+                                <!-- Renders dynamic software cards via app init -->
+                            </div>
+
+                            <hr style="border:none; border-top:1px solid var(--border-glass); margin: 1.75rem 0;">
+
+                            <div class="version-form">
+                                <div class="version-row">
+                                    <div class="form-group">
+                                        <label for="select-mc-version">Minecraft-Version</label>
+                                        <select class="form-control" id="select-mc-version">
+                                            <option value="1.21.1">1.21.1 (Neueste Version)</option>
+                                            <option value="1.21">1.21</option>
+                                            <option value="1.20.4">1.20.4</option>
+                                            <option value="1.20.1">1.20.1</option>
+                                            <option value="1.19.4">1.19.4</option>
+                                            <option value="1.18.2">1.18.2</option>
+                                            <option value="1.16.5">1.16.5 (Retro-Modding)</option>
+                                        </select>
+                                    </div>
+                                    <div class="form-group">
+                                        <label for="input-allocated-ram">RAM Zuweisung</label>
+                                        <div class="range-container" style="margin-top: 6px;">
+                                            <input type="range" class="range-slider" id="input-allocated-ram" min="1" max="16" value="4">
+                                            <span class="range-value" id="label-allocated-ram">4 GB</span>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <button class="btn btn-primary" style="align-self: flex-start; margin-top: 0.5rem;" onclick="app.saveSoftwareConfig()">
+                                    Software-Konfiguration Speichern & Übernehmen
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+
+                    <!-- Panel 3: Plugins & Mods Management -->
+                    <div id="panel-plugins" class="tab-panel">
+                        <div class="plugins-layout">
+                            <!-- Left: Search Catalog -->
+                            <div class="glass-panel" style="padding: 1.5rem;">
+                                <h3 style="margin-bottom: 0.25rem;">Plugin & Mod Katalog</h3>
+                                <p style="color: var(--text-muted); font-size: 0.85rem; margin-bottom: 1.25rem;">Durchsuche und installiere beliebte Servererweiterungen per Klick.</p>
+                                
+                                <div class="search-bar-container">
+                                    <div class="search-input-wrapper">
+                                        <svg class="search-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+                                        <input type="text" class="form-control search-control" id="search-plugin-input" placeholder="Plugin oder Mod suchen..." oninput="app.filterPluginsCatalog()">
+                                    </div>
+                                    <select class="form-control" style="width: auto; min-width: 140px;" id="filter-plugin-category" onchange="app.filterPluginsCatalog()">
+                                        <option value="ALL">Alle Typen</option>
+                                        <option value="PLUGIN">Nur Plugins</option>
+                                        <option value="MOD">Nur Mods</option>
+                                    </select>
+                                </div>
+
+                                <div class="plugin-catalog" id="plugin-catalog-list">
+                                    <!-- Rendered dynamically -->
+                                </div>
+                            </div>
+
+                            <!-- Right: Installed & Upload Panel -->
+                            <div class="upload-section">
+                                <!-- Upload Dropzone -->
+                                <div class="glass-panel upload-dropzone" id="plugin-upload-dropzone">
+                                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+                                    <h4>Eigene .jar hochladen</h4>
+                                    <p>Datei hierher ziehen oder klicken</p>
+                                    <input type="file" id="plugin-file-upload-input" accept=".jar" style="display:none;">
+                                </div>
+
+                                <!-- Injected Upload Progress -->
+                                <div class="upload-progress-container" id="plugin-upload-progress">
+                                    <div class="upload-progress-meta">
+                                        <span id="plugin-upload-filename">upload.jar</span>
+                                        <span id="plugin-upload-percent">0%</span>
+                                    </div>
+                                    <div class="upload-progress-bar">
+                                        <div class="upload-progress-fill" id="plugin-upload-progress-bar-fill"></div>
+                                    </div>
+                                </div>
+
+                                <!-- List of Installed plugins -->
+                                <div class="glass-panel" style="padding: 1.5rem;">
+                                    <h3 style="margin-bottom: 0.75rem; font-size: 1.1rem;">Installierte Erweiterungen</h3>
+                                    <div class="installed-plugins-list" id="installed-plugins-panel">
+                                        <!-- Injected by Server selection -->
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+
+                    <!-- Panel 4: Backups history & generation -->
+                    <div id="panel-backups" class="tab-panel">
+                        <div class="glass-panel backups-container" style="padding: 1.75rem;">
+                            <div class="backups-toolbar">
+                                <div>
+                                    <h3 style="font-size: 1.25rem; margin-bottom: 0.25rem;">Server-Backups</h3>
+                                    <p style="color: var(--text-muted); font-size: 0.85rem;">Sichere den Zustand deiner Welten und Konfigurationsdateien.</p>
+                                </div>
+                                <button class="btn btn-primary" id="btn-create-backup" onclick="app.createNewBackup()">
+                                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+                                    Backup Erstellen
+                                </button>
+                            </div>
+
+                            <!-- Backups loader bar (optional during generation) -->
+                            <div class="upload-progress-container" id="backup-generation-progress" style="margin-top: -0.5rem; display: none;">
+                                <div class="upload-progress-meta">
+                                    <span>Komprimiere Weltdateien & Konfigurationen...</span>
+                                    <span id="backup-progress-percent">0%</span>
+                                </div>
+                                <div class="upload-progress-bar">
+                                    <div class="upload-progress-fill" id="backup-progress-fill" style="width: 0%;"></div>
+                                </div>
+                            </div>
+
+                            <div class="table-responsive">
+                                <table class="data-table">
+                                    <thead>
+                                        <tr>
+                                            <th>Backup Name</th>
+                                            <th>Erstelldatum</th>
+                                            <th>Größe</th>
+                                            <th>Aktionen</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="backup-list-tbody">
+                                        <!-- Injected by Server selection -->
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+
+                </div>
+            </div>
+        </section>
+
+    </main>
+
+    <!-- ==========================================================================
+       C. ADD SERVER MODAL OVERLAY
+       ========================================================================== -->
+    <div class="modal-overlay" id="createServerModal">
+        <div class="modal-box glass-panel">
+            <div class="modal-header">
+                <h3 style="font-size: 1.35rem;">Neuen Server anlegen</h3>
+                <button class="modal-close" onclick="app.closeCreateModal()">&times;</button>
+            </div>
+            
+            <form id="create-server-form" onsubmit="app.handleCreateServer(event)">
+                <div class="form-group">
+                    <label for="new-server-name">Servername</label>
+                    <input type="text" class="form-control" id="new-server-name" placeholder="z.B. Skyblock Fun" required autocomplete="off">
+                </div>
+                
+                <div class="form-group">
+                    <label for="new-server-software">Serversoftware</label>
+                    <select class="form-control" id="new-server-software">
+                        <option value="Vanilla">Vanilla (Standard Minecraft)</option>
+                        <option value="Spigot">Spigot (Klassische Plugins)</option>
+                        <option value="Paper">Paper (Optimierte Plugins)</option>
+                        <option value="Forge">Forge (Schwere Modpacks)</option>
+                        <option value="Fabric">Fabric (Leichte, moderne Mods)</option>
+                        <option value="Mohist">Mohist (Plugins & Forge Hybrid)</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label for="new-server-version">Minecraft Version</label>
+                    <select class="form-control" id="new-server-version">
+                        <option value="1.21.1">1.21.1 (Aktuell)</option>
+                        <option value="1.21">1.21</option>
+                        <option value="1.20.4">1.20.4</option>
+                        <option value="1.20.1">1.20.1</option>
+                        <option value="1.19.4">1.19.4</option>
+                        <option value="1.18.2">1.18.2</option>
+                        <option value="1.16.5">1.16.5</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label for="new-server-ram">RAM Zuweisung</label>
+                    <div class="range-container">
+                        <input type="range" class="range-slider" id="new-server-ram" min="1" max="16" value="4">
+                        <span class="range-value" id="new-ram-value-label">4 GB</span>
+                    </div>
+                </div>
+
+                <div style="display:flex; justify-content:flex-end; gap:0.75rem; margin-top: 1.75rem;">
+                    <button type="button" class="btn btn-secondary" onclick="app.closeCreateModal()">Abbrechen</button>
+                    <button type="submit" class="btn btn-primary">Server Erstellen</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Toast Notification container -->
+    <div class="toast-container" id="toast-wrapper"></div>
+
+
+    <!-- ==========================================================================
+       D. JAVASCRIPT ENGINE (SIMULATION & INTERACTION)
+       ========================================================================== -->
+    <script>
+        
+        /* D.1 CORE MOCK DATA SYSTEM */
+        const INITIAL_SOFTWARE = [
+            { id: 'Vanilla', name: 'Vanilla', desc: 'Die offizielle, unveränderte Minecraft Serversoftware von Mojang.', color: '#d32f2f' },
+            { id: 'Spigot', name: 'Spigot', desc: 'Die klassische, weit verbreitete Software mit solider Plugin-Kompatibilität.', color: '#e65100' },
+            { id: 'Paper', name: 'Paper', desc: 'Hochgradig optimierter Fork von Spigot, ideal für performance-kritische Server.', color: '#0288d1' },
+            { id: 'Forge', name: 'Forge', desc: 'Der unangefochtene Standard für komplexe, umfangreiche Mods und Modpacks.', color: '#7b1fa2' },
+            { id: 'Fabric', name: 'Fabric', desc: 'Die moderne, extrem leichtgewichtige Modding-API mit blitzschnellem Laden.', color: '#388e3c' },
+            { id: 'Mohist', name: 'Mohist', desc: 'Smarter Hybrid, der sowohl Spigot-Plugins als auch Forge-Mods gleichzeitig ausführen kann.', color: '#fbc02d' }
+        ];
+
+        const PLUGINS_DATABASE = [
+            { id: 'EssentialsX', name: 'EssentialsX', desc: 'Bietet über 100 unverzichtbare Befehle wie /teleport, /warp, /home und Eco.', category: 'PLUGIN', version: '2.20.1' },
+            { id: 'WorldEdit', name: 'WorldEdit', desc: 'Das ultimative Tool zur Ingame-Weltenbearbeitung mit Pinseln und Selektionen.', category: 'PLUGIN', version: '7.3.0' },
+            { id: 'LuckPerms', name: 'LuckPerms', desc: 'Hochwertiges, sicheres und performantes Permission-Plugin zur Rechteverwaltung.', category: 'PLUGIN', version: '5.4.12' },
+            { id: 'Vault', name: 'Vault', desc: 'Essenzielle Schnittstelle (API) zur einfachen Verknüpfung von Economy und Rechten.', category: 'PLUGIN', version: '1.7.3' },
+            { id: 'Dynmap', name: 'Dynmap', desc: 'Generiert eine voll interaktive, zoombare 2D/3D Google-Maps-Karte deiner Welten im Web.', category: 'PLUGIN', version: '3.6.0' },
+            { id: 'GeyserMC', name: 'GeyserMC', desc: 'Ermöglicht es Minecraft Bedrock (Handy/Konsole) Spielern, deinem Java-Server beizutreten.', category: 'PLUGIN', version: '2.2.0' },
+            { id: 'Create', name: 'Create Mod', desc: 'Erweitert Minecraft um phantastische Zahnräder, mechanische Antriebe und Automationen.', category: 'MOD', version: '0.5.1' },
+            { id: 'JEI', name: 'Just Enough Items', desc: 'Das unverzichtbare Ingame-Rezeptbuch zum Durchsuchen aller Items und Crafting-Wege.', category: 'MOD', version: '15.2.0' },
+            { id: 'BiomesOPlenty', name: 'Biomes O\' Plenty', desc: 'Fügt Dutzende atemberaubende, realistische und fantasievolle neue Biome hinzu.', category: 'MOD', version: '19.0.0' },
+            { id: 'Waystones', name: 'Waystones Mod', desc: 'Ermöglicht das Aufstellen von Teleportations-Steinen für schnelles Ingame-Reisen.', category: 'MOD', version: '14.1.0' }
+        ];
+
+        /* ---------------------------------------------------------------
+           D.0 BACKEND-API CLIENT
+           Spricht das FastAPI-Backend an. Wenn das Frontend aus dem Container
+           ausgeliefert wird, ist Origin gleich -> relative URL reicht.
+           --------------------------------------------------------------- */
+        const API = (() => {
+            const base = window.CRAFTCONTROL_API || '';
+            async function req(method, path, body) {
+                const opts = { method, headers: { 'Accept': 'application/json' } };
+                if (body !== undefined) {
+                    opts.headers['Content-Type'] = 'application/json';
+                    opts.body = JSON.stringify(body);
+                }
+                const res = await fetch(base + path, opts);
+                if (res.status === 204) return null;
+                let data = null;
+                try { data = await res.json(); } catch (_) { /* ignore */ }
+                if (!res.ok) {
+                    const msg = (data && (data.detail || data.message)) || res.statusText;
+                    throw new Error(msg);
+                }
+                return data;
+            }
+            return {
+                listServers: () => req('GET', '/api/servers'),
+                getServer:   (id) => req('GET', `/api/servers/${id}`),
+                createServer:(payload) => req('POST', '/api/servers', payload),
+                deleteServer:(id) => req('DELETE', `/api/servers/${id}`),
+                start:       (id) => req('POST', `/api/servers/${id}/start`),
+                stop:        (id) => req('POST', `/api/servers/${id}/stop`),
+                restart:     (id) => req('POST', `/api/servers/${id}/restart`),
+                logs:        (id, tail = 200) => req('GET', `/api/servers/${id}/logs?tail=${tail}`),
+                command:     (id, command) => req('POST', `/api/servers/${id}/command`, { command }),
+                stats:       () => req('GET', '/api/stats'),
+            };
+        })();
+
+        // In-Memory-Cache der vom Backend gelieferten Server (DTOs).
+        // Pro Server haengen wir clientseitig logs/installedExtensions/backups an,
+        // bis diese Bereiche ebenfalls vom Backend gepflegt werden.
+        let servers = [];
+
+        // Demo-Daten: NUR Plugin-Listen / Backup-Listen / Logs sind weiterhin
+        // clientseitig (kein Backend-Mapping vorhanden). Wird beim ersten
+        // Sichtbarwerden auf den jeweiligen Server gemerged.
+        const _legacy_seed_disabled = [
+            {
+                id: 'srv-1',
+                name: 'Survival World',
+                status: 'running', // 'running', 'starting', 'stopping', 'offline'
+                software: 'Paper',
+                version: '1.20.4',
+                ramMax: 6,
+                ramUsed: 4.1,
+                cpuUsed: 12,
+                playersCurrent: 4,
+                playersMax: 20,
+                installedExtensions: ['EssentialsX', 'WorldEdit', 'LuckPerms', 'Vault'],
+                backups: [
+                    { id: 'b-1', name: 'world_daily_backup_2026-05-22.tar.gz', date: '22.05.2026, 04:00', size: '284 MB' },
+                    { id: 'b-2', name: 'before_update_backup.tar.gz', date: '21.05.2026, 18:30', size: '279 MB' }
+                ],
+                logs: [
+                    '[21:40:02 INFO]: Starting Minecraft server on *:25565',
+                    '[21:40:05 INFO]: Loading properties',
+                    '[21:40:06 INFO]: This server is running Paper version git-Paper-496 (MC: 1.20.4)',
+                    '[21:40:09 INFO]: [LuckPerms] Loading database connections...',
+                    '[21:40:11 INFO]: [Essentials] Enabling Essentials v2.20.1',
+                    '[21:40:14 INFO]: Preparing level "world"',
+                    '[21:40:15 INFO]: Preparing start region for dimension minecraft:overworld',
+                    '[21:40:17 INFO]: Time elapsed to load world: 2104 ms',
+                    '[21:40:18 INFO]: Done (16.20s)! For help, type "help"',
+                    '[21:42:30 INFO]: Player basti joined the game from IP 192.168.1.52',
+                    '[21:42:31 INFO]: basti[/192.168.1.52:50422] logged in with entity id 142 at ([world] 12.5, 64.0, -84.2)',
+                    '[21:44:12 INFO]: Player craftmine joined the game from IP 192.168.1.109',
+                    '[21:55:00 INFO]: Saving worlds and chunks to disc...'
+                ]
+            },
+            {
+                id: 'srv-2',
+                name: 'Create Factory Tech',
+                status: 'running',
+                software: 'Forge',
+                version: '1.20.1',
+                ramMax: 10,
+                ramUsed: 7.9,
+                cpuUsed: 42,
+                playersCurrent: 3,
+                playersMax: 15,
+                installedExtensions: ['Create', 'JEI', 'BiomesOPlenty'],
+                backups: [
+                    { id: 'b-3', name: 'industrial_state_perfect.tar.gz', date: '20.05.2026, 12:15', size: '1.2 GB' }
+                ],
+                logs: [
+                    '[21:12:10 INFO]: Loading Forge Mod Loader...',
+                    '[21:12:15 INFO]: Found 3 active mods in directory',
+                    '[21:12:20 INFO]: Loading Create Mod v0.5.1',
+                    '[21:12:25 INFO]: Initializing fluid physics and copper cogwheel systems',
+                    '[21:12:45 INFO]: Preparing start region for dimension minecraft:overworld',
+                    '[21:12:51 INFO]: Done! Ready to automate some mechanisms.',
+                    '[21:14:02 INFO]: Player build_master joined the game.'
+                ]
+            },
+            {
+                id: 'srv-3',
+                name: 'Vanilla Sandbox',
+                status: 'offline',
+                software: 'Vanilla',
+                version: '1.21.1',
+                ramMax: 4,
+                ramUsed: 0,
+                cpuUsed: 0,
+                playersCurrent: 0,
+                playersMax: 20,
+                installedExtensions: [],
+                backups: [],
+                logs: [
+                    '[18:02:10 INFO]: Stopping server...',
+                    '[18:02:11 INFO]: Saving players',
+                    '[18:02:11 INFO]: Saving worlds',
+                    '[18:02:12 INFO]: Saving chunks',
+                    '[18:02:13 INFO]: Closing Server socket bind.',
+                    '[18:02:14 INFO]: Server shutdown completed.'
+                ]
+            }
+        ];
+
+        /* D.2 VIEW & SIMULATION CONTROLLER */
+        class DashboardApp {
+            constructor() {
+                this.activeServerId = null;
+                this.activeTab = 'status';
+                this.simulationInterval = null;
+                
+                // Form element references
+                this.ramSlider = document.getElementById('new-server-ram');
+                this.ramValueLabel = document.getElementById('new-ram-value-label');
+                
+                // Modal RAM Slider event
+                this.ramSlider.addEventListener('input', (e) => {
+                    this.ramValueLabel.innerText = e.target.value + ' GB';
+                });
+
+                // Version Panel RAM Slider event
+                document.getElementById('input-allocated-ram').addEventListener('input', (e) => {
+                    document.getElementById('label-allocated-ram').innerText = e.target.value + ' GB';
+                });
+
+                // Listen for drag & drop uploads
+                this.setupDragAndDrop();
+            }
+
+            init() {
+                // Initial Software-Karten anzeigen (Default Vanilla)
+                this.renderSoftwareCards('Vanilla');
+
+                // Erstes Laden + Polling
+                this.refreshServers().then(() => {
+                    this.renderServerGrid();
+                    this.renderGlobalStats();
+                });
+                this.startResourceSimulation();
+            }
+
+            /* --- BACKEND SYNC --- */
+            // Holt die aktuelle Server-Liste vom Backend und merged sie mit
+            // den client-only-Feldern (logs/installedExtensions/backups).
+            async refreshServers() {
+                let dtos = [];
+                try {
+                    dtos = await API.listServers();
+                } catch (err) {
+                    console.error('Server-Liste konnte nicht geladen werden:', err);
+                    this.showToast('Backend nicht erreichbar: ' + err.message, 'error');
+                    return;
+                }
+
+                const previous = new Map(servers.map(s => [s.id, s]));
+                servers = dtos.map(dto => this._mergeDto(dto, previous.get(dto.id)));
+                return servers;
+            }
+
+            async refreshServer(id) {
+                try {
+                    const dto = await API.getServer(id);
+                    const idx = servers.findIndex(s => s.id === id);
+                    const prev = idx >= 0 ? servers[idx] : null;
+                    const merged = this._mergeDto(dto, prev);
+                    if (idx >= 0) servers[idx] = merged;
+                    else servers.push(merged);
+                    return merged;
+                } catch (err) {
+                    console.warn('refreshServer:', err);
+                    return null;
+                }
+            }
+
+            // Mappt ein Backend-DTO auf das vom UI erwartete Schema.
+            _mergeDto(dto, prev) {
+                return {
+                    id: dto.id,
+                    containerId: dto.container_id,
+                    name: dto.name,
+                    status: dto.status,                // running | starting | stopping | offline
+                    software: dto.software,
+                    version: dto.version,
+                    ramMax: dto.ram_max,
+                    ramUsed: dto.ram_used,
+                    cpuUsed: dto.cpu_used,
+                    playersCurrent: dto.players_current,
+                    playersMax: dto.players_max,
+                    port: dto.port,
+                    installedExtensions: prev ? prev.installedExtensions : [],
+                    backups: prev ? prev.backups : [],
+                    logs: prev ? prev.logs : []
+                };
+            }
+
+            /* --- THEME SWITCHING --- */
+            switchTheme(themeName) {
+                document.documentElement.setAttribute('data-theme', themeName);
+                
+                // Toggle active styling on buttons
+                document.querySelectorAll('.theme-btn').forEach(btn => btn.classList.remove('active'));
+                const targetBtn = document.getElementById(`theme-btn-${themeName}`);
+                if (targetBtn) targetBtn.classList.add('active');
+                
+                this.showToast(`Theme gewechselt zu: ${themeName.replace('-', ' ').toUpperCase()}`, 'success');
+            }
+
+            /* --- VIEW NAVIGATION --- */
+            showOverview() {
+                document.getElementById('view-dashboard').classList.remove('active');
+                document.getElementById('view-overview').classList.add('active');
+                this.activeServerId = null;
+                this.refreshServers().then(() => {
+                    this.renderServerGrid();
+                    this.renderGlobalStats();
+                });
+            }
+
+            async showDashboard(serverId) {
+                this.activeServerId = serverId;
+                let server = this.getServer(serverId);
+                if (!server) {
+                    server = await this.refreshServer(serverId);
+                }
+                if (!server) return;
+
+                document.getElementById('view-overview').classList.remove('active');
+                document.getElementById('view-dashboard').classList.add('active');
+
+                // Populate Server specific sidebar metadata
+                document.getElementById('dash-server-title').innerText = server.name;
+                document.getElementById('dash-server-software-label').innerText = `${server.software} ${server.version}`;
+
+                // Re-render server icon
+                const iconContainer = document.getElementById('dash-server-icon');
+                iconContainer.innerHTML = this.getSoftwareSVG(server.software, server.status === 'running');
+
+                this.updateDashboardHeaderAndControls(server);
+
+                // Switch to default console tab
+                this.switchTab('status');
+                this.updateResourceMeters(server);
+                this.renderBackupsTable(server);
+                this.renderInstalledExtensionsList(server);
+                this.renderSoftwareCards(server.software);
+
+                // Pre-fill versions configuration
+                document.getElementById('select-mc-version').value = server.version;
+                document.getElementById('input-allocated-ram').value = server.ramMax;
+                document.getElementById('label-allocated-ram').innerText = server.ramMax + ' GB';
+
+                // Live-Logs vom Backend
+                this.refreshLogs(server.id);
+            }
+
+            /* --- TAB CONTROLLER --- */
+            switchTab(tabId) {
+                this.activeTab = tabId;
+                
+                // Deactivate all nav buttons and panels
+                document.querySelectorAll('.dash-nav-btn').forEach(btn => btn.classList.remove('active'));
+                document.querySelectorAll('.tab-panel').forEach(panel => panel.classList.remove('active'));
+
+                // Activate specific
+                document.getElementById(`tab-btn-${tabId}`).classList.add('active');
+                document.getElementById(`panel-${tabId}`).classList.add('active');
+
+                if (tabId === 'plugins') {
+                    this.renderPluginsCatalog();
+                }
+            }
+
+            /* --- SERVER MANAGEMENT & LISTING --- */
+            getServer(id) {
+                return servers.find(s => s.id === id);
+            }
+
+            renderGlobalStats() {
+                const total = servers.length;
+                const online = servers.filter(s => s.status === 'running').length;
+                let activePlayers = 0;
+                let maxPlayers = 0;
+
+                servers.forEach(s => {
+                    if (s.status === 'running') {
+                        activePlayers += s.playersCurrent;
+                        maxPlayers += s.playersMax;
+                    }
+                });
+
+                document.getElementById('stat-total-servers').innerText = total;
+                document.getElementById('stat-online-servers').innerText = online;
+                document.getElementById('stat-total-players').innerText = `${activePlayers} / ${maxPlayers}`;
+            }
+
+            renderServerGrid() {
+                const container = document.getElementById('server-list-container');
+                container.innerHTML = '';
+
+                servers.forEach(server => {
+                    const isRunning = server.status === 'running';
+                    const isStarting = server.status === 'starting';
+                    const statusClass = server.status; // running, starting, stopping, offline
+                    const displayStatus = server.status.toUpperCase();
+
+                    const card = document.createElement('div');
+                    card.className = `server-card glass-panel ${statusClass}`;
+                    card.setAttribute('onclick', `app.handleCardClick(event, '${server.id}')`);
+
+                    // Resource display logic
+                    const ramPercent = isRunning ? (server.ramUsed / server.ramMax) * 100 : 0;
+                    const cpuVal = isRunning ? server.cpuUsed : 0;
+                    const playersVal = isRunning ? `${server.playersCurrent}/${server.playersMax}` : '0/0';
+
+                    card.innerHTML = `
+                        <div>
+                            <div class="server-card-top">
+                                <div class="server-icon">
+                                    ${this.getSoftwareSVG(server.software, isRunning)}
+                                </div>
+                                <div class="status-badge">
+                                    <span class="status-dot"></span>
+                                    <span class="status-text">${displayStatus}</span>
+                                </div>
+                            </div>
+                            
+                            <div class="server-card-info">
+                                <h3>${server.name}</h3>
+                                <p>
+                                    <span class="badge-software">${server.software}</span>
+                                    <span>Minecraft ${server.version}</span>
+                                </p>
+                            </div>
+                        </div>
+
+                        <div>
+                            <div class="server-card-meters">
+                                <div class="meter-row">
+                                    <span class="meter-label">
+                                        <svg width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M5.121 17.804A13.937 13.937 0 0112 16c2.5 0 4.847.655 6.879 1.804M15 10a3 3 0 11-6 0 3 3 0 016 0zm6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg> Spieler
+                                    </span>
+                                    <span>${playersVal}</span>
+                                </div>
+                                <div class="meter-row">
+                                    <span class="meter-label">CPU</span>
+                                    <span>${cpuVal}%</span>
+                                </div>
+                                <div class="meter-bar-container">
+                                    <div class="meter-bar-fill" style="width: ${cpuVal}%"></div>
+                                </div>
+                                <div class="meter-row" style="margin-top: 4px;">
+                                    <span class="meter-label">RAM</span>
+                                    <span>${isRunning ? server.ramUsed.toFixed(1) : 0} / ${server.ramMax} GB</span>
+                                </div>
+                                <div class="meter-bar-container">
+                                    <div class="meter-bar-fill" style="width: ${ramPercent}%"></div>
+                                </div>
+                            </div>
+
+                            <div class="server-card-actions">
+                                <button class="btn btn-primary" style="flex-grow:1;" onclick="app.manageServerDirectly(event, '${server.id}')">Verwalten</button>
+                                ${isRunning ? `
+                                    <button class="btn btn-danger btn-circle" title="Server Stoppen" onclick="app.quickTogglePower(event, '${server.id}', 'stop')">
+                                        <svg width="14" height="14" fill="currentColor" viewBox="0 0 16 16"><path d="M5 3.5h6A1.5 1.5 0 0 1 12.5 5v6a1.5 1.5 0 0 1-1.5 1.5H5A1.5 1.5 0 0 1 3.5 11V5A1.5 1.5 0 0 1 5 3.5z"/></svg>
+                                    </button>
+                                ` : `
+                                    <button class="btn btn-success btn-circle" title="Server Starten" ${isStarting ? 'disabled' : ''} onclick="app.quickTogglePower(event, '${server.id}', 'start')">
+                                        <svg width="14" height="14" fill="currentColor" viewBox="0 0 16 16"><path d="m11.596 8.697-6.363 3.692c-.54.313-1.233-.066-1.233-.697V4.308c0-.63.692-1.01 1.233-.696l6.363 3.692a.802.802 0 0 1 0 1.393z"/></svg>
+                                    </button>
+                                `}
+                            </div>
+                        </div>
+                    `;
+
+                    container.appendChild(card);
+                });
+
+                // Add Plus card to grid
+                const plusCard = document.createElement('div');
+                plusCard.className = 'add-server-card';
+                plusCard.setAttribute('onclick', 'app.openCreateModal()');
+                plusCard.innerHTML = `
+                    <div class="plus-icon">
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                    </div>
+                    <span>Neuen Server anlegen</span>
+                `;
+                container.appendChild(plusCard);
+            }
+
+            handleCardClick(event, serverId) {
+                // Prevent routing to dashboard if a button is clicked
+                if (event.target.closest('.btn') || event.target.closest('.server-card-actions')) {
+                    return;
+                }
+                this.showDashboard(serverId);
+            }
+
+            manageServerDirectly(event, serverId) {
+                event.stopPropagation();
+                this.showDashboard(serverId);
+            }
+
+            /* --- MODAL LOGIC --- */
+            openCreateModal() {
+                document.getElementById('createServerModal').classList.add('active');
+            }
+
+            closeCreateModal() {
+                document.getElementById('createServerModal').classList.remove('active');
+                document.getElementById('create-server-form').reset();
+                this.ramValueLabel.innerText = '4 GB';
+            }
+
+            async handleCreateServer(event) {
+                event.preventDefault();
+                const name = document.getElementById('new-server-name').value.trim();
+                const software = document.getElementById('new-server-software').value;
+                const version = document.getElementById('new-server-version').value;
+                const ram = parseInt(document.getElementById('new-server-ram').value);
+
+                if (!name) return;
+
+                const submitBtn = event.submitter || event.target.querySelector('button[type="submit"]');
+                if (submitBtn) submitBtn.disabled = true;
+                this.showToast(`Lege Server "${name}" an...`, 'warn');
+
+                try {
+                    await API.createServer({ name, software, version, ram });
+                    this.closeCreateModal();
+                    await this.refreshServers();
+                    this.renderServerGrid();
+                    this.renderGlobalStats();
+                    this.showToast(`Server "${name}" wurde angelegt.`, 'success');
+                } catch (err) {
+                    console.error(err);
+                    this.showToast('Fehler beim Anlegen: ' + err.message, 'error');
+                } finally {
+                    if (submitBtn) submitBtn.disabled = false;
+                }
+            }
+
+            /* --- POWER STATE CONTROLLER (BACKEND) --- */
+            async quickTogglePower(event, serverId, action) {
+                event.stopPropagation();
+                await this._powerAction(serverId, action);
+            }
+
+            async triggerActiveServerPower(action) {
+                if (!this.activeServerId) return;
+                await this._powerAction(this.activeServerId, action);
+            }
+
+            async _powerAction(serverId, action) {
+                const server = this.getServer(serverId);
+                if (!server) return;
+                const map = { start: API.start, stop: API.stop, restart: API.restart };
+                const fn = map[action];
+                if (!fn) return;
+
+                // Optimistisches UI-Feedback
+                if (action === 'start') server.status = 'starting';
+                else if (action === 'stop') server.status = 'stopping';
+                else server.status = 'starting';
+                this.syncAllUIs();
+
+                this.showToast(`Aktion "${action}" wird ausgefuehrt...`, 'warn');
+                try {
+                    await fn(serverId);
+                    await this.refreshServer(serverId);
+                    this.syncAllUIs();
+                    this.refreshLogs(serverId);
+                    this.showToast(`"${server.name}" -> ${action} ausgefuehrt.`, 'success');
+                } catch (err) {
+                    console.error(err);
+                    this.showToast('Fehler: ' + err.message, 'error');
+                    await this.refreshServer(serverId);
+                    this.syncAllUIs();
+                }
+            }
+
+            // Holt Logs vom Backend und schreibt sie in das logs-Array.
+            async refreshLogs(serverId) {
+                const server = this.getServer(serverId);
+                if (!server) return;
+                try {
+                    const data = await API.logs(serverId, 200);
+                    server.logs = data.lines || [];
+                } catch (err) {
+                    server.logs = [`[SYSTEM]: Logs konnten nicht geladen werden: ${err.message}`];
+                }
+                if (this.activeServerId === serverId && this.activeTab === 'status') {
+                    this.renderConsoleLogs(server);
+                }
+            }
+
+            executeStartupSequence(server) {
+                if (server.status === 'starting' || server.status === 'running') return;
+
+                server.status = 'starting';
+                server.cpuUsed = 15;
+                server.ramUsed = 0.5;
+                
+                this.addLog(server, 'SYSTEM', 'Serverstart initiiert...');
+                this.addLog(server, 'INFO', 'Loading libraries, please wait...');
+                
+                // Live UI Sync
+                this.syncAllUIs();
+
+                let step = 0;
+                const startupTimer = setInterval(() => {
+                    if (this.activeServerId === server.id && this.activeTab === 'status') {
+                        this.renderConsoleLogs(server);
+                    }
+                    
+                    step++;
+                    if (step === 1) {
+                        this.addLog(server, 'INFO', `Starting minecraft server version ${server.version}`);
+                        server.cpuUsed = 45;
+                        server.ramUsed = 1.2;
+                    } else if (step === 2) {
+                        this.addLog(server, 'INFO', 'Loading properties and binding server port 25565...');
+                        server.cpuUsed = 75;
+                        server.ramUsed = 2.4;
+                    } else if (step === 3) {
+                        this.addLog(server, 'INFO', `Preparing level "world" under ${server.software} environment`);
+                        server.cpuUsed = 92;
+                        server.ramUsed = 3.6;
+                    } else if (step === 4) {
+                        this.addLog(server, 'INFO', 'Preparing start region for dimension minecraft:overworld (0%)');
+                        this.addLog(server, 'INFO', 'Preparing start region for dimension minecraft:the_nether (42%)');
+                        this.addLog(server, 'INFO', 'Preparing start region for dimension minecraft:the_end (86%)');
+                        server.ramUsed = server.ramMax * 0.75;
+                    } else if (step === 5) {
+                        this.addLog(server, 'INFO', `Done (8.42s)! Server binds on port 25565. For help, type "help" or "/plugins"`);
+                        
+                        server.status = 'running';
+                        server.cpuUsed = 8;
+                        server.playersCurrent = 0;
+                        
+                        clearInterval(startupTimer);
+                        this.syncAllUIs();
+                        this.showToast(`Server "${server.name}" ist jetzt ONLINE!`, 'success');
+                    }
+                    
+                    this.syncAllUIs();
+                }, 1200);
+            }
+
+            executeShutdownSequence(server) {
+                if (server.status === 'stopping' || server.status === 'offline') return;
+
+                server.status = 'stopping';
+                server.playersCurrent = 0;
+                server.cpuUsed = 30;
+                
+                this.addLog(server, 'SYSTEM', 'Server-Shutdown initiiert...');
+                this.addLog(server, 'INFO', 'Saving players and saving worlds...');
+                
+                this.syncAllUIs();
+
+                let step = 0;
+                const shutdownTimer = setInterval(() => {
+                    step++;
+                    if (step === 1) {
+                        this.addLog(server, 'INFO', 'Saving chunks to disk...');
+                        server.ramUsed = server.ramUsed * 0.5;
+                        server.cpuUsed = 50;
+                    } else if (step === 2) {
+                        this.addLog(server, 'INFO', 'Closing server socket listener on 25565');
+                        server.ramUsed = 0.5;
+                        server.cpuUsed = 10;
+                    } else if (step === 3) {
+                        this.addLog(server, 'INFO', 'Server shutdown successfully completed.');
+                        
+                        server.status = 'offline';
+                        server.cpuUsed = 0;
+                        server.ramUsed = 0;
+                        
+                        clearInterval(shutdownTimer);
+                        this.syncAllUIs();
+                        this.showToast(`Server "${server.name}" wurde gestoppt.`, 'warn');
+                    }
+                    
+                    this.syncAllUIs();
+                }, 1000);
+            }
+
+            executeRestartSequence(server) {
+                this.showToast(`Server "${server.name}" wird neugestartet...`, 'warn');
+                this.executeShutdownSequence(server);
+                
+                // Queue startup after shutdown completes
+                const restartInterval = setInterval(() => {
+                    if (server.status === 'offline') {
+                        clearInterval(restartInterval);
+                        this.executeStartupSequence(server);
+                    }
+                }, 1000);
+            }
+
+            syncAllUIs() {
+                this.renderServerGrid();
+                this.renderGlobalStats();
+                
+                if (this.activeServerId) {
+                    const server = this.getServer(this.activeServerId);
+                    if (server) {
+                        this.updateDashboardHeaderAndControls(server);
+                        this.updateResourceMeters(server);
+                        this.renderConsoleLogs(server);
+                    }
+                }
+            }
+
+            updateDashboardHeaderAndControls(server) {
+                // Background indicators and texts
+                const badge = document.getElementById('dash-server-badge');
+                const badgeText = badge.querySelector('.status-text');
+                const headerText = document.getElementById('dash-header-status-text');
+                const sidebarIcon = document.getElementById('dash-server-icon');
+
+                // Reset statuses
+                badge.className = `status-badge ${server.status}`;
+                badgeText.innerText = server.status.toUpperCase();
+                headerText.innerText = `Steuerung: ${server.name}`;
+                
+                // Enable/disable buttons based on status
+                const btnStart = document.getElementById('dash-btn-start');
+                const btnStop = document.getElementById('dash-btn-stop');
+                const btnRestart = document.getElementById('dash-btn-restart');
+
+                sidebarIcon.innerHTML = this.getSoftwareSVG(server.software, server.status === 'running');
+
+                if (server.status === 'running') {
+                    btnStart.disabled = true;
+                    btnStop.disabled = false;
+                    btnRestart.disabled = false;
+                } else if (server.status === 'offline') {
+                    btnStart.disabled = false;
+                    btnStop.disabled = true;
+                    btnRestart.disabled = true;
+                } else {
+                    // stopping or starting
+                    btnStart.disabled = true;
+                    btnStop.disabled = true;
+                    btnRestart.disabled = true;
+                }
+            }
+
+            updateResourceMeters(server) {
+                const isRunning = server.status === 'running';
+
+                // CPU
+                const cpuVal = isRunning ? server.cpuUsed : 0;
+                document.getElementById('dash-gauge-cpu').innerText = `${cpuVal}%`;
+                
+                // RAM
+                const ramMax = server.ramMax;
+                const ramUsed = isRunning ? server.ramUsed.toFixed(1) : '0.0';
+                document.getElementById('dash-gauge-ram').innerText = `${ramUsed} / ${ramMax}.0 GB`;
+
+                // Players
+                const playMax = server.playersMax;
+                const playCur = isRunning ? server.playersCurrent : 0;
+                document.getElementById('dash-gauge-players').innerText = `${playCur} / ${playMax}`;
+            }
+
+
+            /* --- LIVE METRIC POLLER (Backend) --- */
+            startResourceSimulation() {
+                // Periodisches Refresh statt Mock-Simulation.
+                this.simulationInterval = setInterval(async () => {
+                    if (this.activeServerId) {
+                        // Detail-Refresh + Logs fuer aktiven Server
+                        const updated = await this.refreshServer(this.activeServerId);
+                        if (updated) {
+                            this.updateDashboardHeaderAndControls(updated);
+                            this.updateResourceMeters(updated);
+                        }
+                        if (this.activeTab === 'status') {
+                            this.refreshLogs(this.activeServerId);
+                        }
+                    } else {
+                        await this.refreshServers();
+                        this.renderServerGrid();
+                        this.renderGlobalStats();
+                    }
+                }, 4000);
+            }
+
+            /* --- CONSOLE TERMINAL ENGINE --- */
+            addLog(server, level, message) {
+                const time = new Date().toLocaleTimeString();
+                let entry = `[${time} ${level}]: ${message}`;
+                server.logs.push(entry);
+                
+                // Cap log arrays to preserve memory mock
+                if (server.logs.length > 100) {
+                    server.logs.shift();
+                }
+            }
+
+            renderConsoleLogs(server) {
+                const pane = document.getElementById('console-logs-pane');
+                pane.innerHTML = '';
+
+                server.logs.forEach(log => {
+                    const line = document.createElement('div');
+                    line.className = 'log-entry';
+
+                    // Simple regex coloring
+                    if (log.includes('INFO')) {
+                        line.innerHTML = log.replace(/(\[\d{2}:\d{2}:\d{2}\])/, '<span class="log-time">$1</span>')
+                                            .replace(/(INFO):/, '<span class="log-info">$1:</span>');
+                    } else if (log.includes('WARN')) {
+                        line.innerHTML = log.replace(/(\[\d{2}:\d{2}:\d{2}\])/, '<span class="log-time">$1</span>')
+                                            .replace(/(WARN):/, '<span class="log-warn">$1:</span>');
+                    } else if (log.includes('ERROR')) {
+                        line.innerHTML = log.replace(/(\[\d{2}:\d{2}:\d{2}\])/, '<span class="log-time">$1</span>')
+                                            .replace(/(ERROR):/, '<span class="log-error">$1:</span>');
+                    } else if (log.includes('COMMAND')) {
+                        line.innerHTML = log.replace(/(\[\d{2}:\d{2}:\d{2}\])/, '<span class="log-time">$1</span>')
+                                            .replace(/(COMMAND):/, '<span class="log-command">$1:</span>');
+                    } else if (log.includes('SYSTEM')) {
+                        line.innerHTML = log.replace(/(\[\d{2}:\d{2}:\d{2}\])/, '<span class="log-time">$1</span>')
+                                            .replace(/(SYSTEM):/, '<span class="log-system">$1:</span>');
+                    } else {
+                        line.innerText = log;
+                    }
+                    pane.appendChild(line);
+                });
+
+                // Auto-scroll to bottom of console logs
+                pane.scrollTop = pane.scrollHeight;
+            }
+
+            async submitConsoleCommand() {
+                const input = document.getElementById('console-cmd-input');
+                const command = input.value.trim();
+                if (!command) return;
+
+                const server = this.getServer(this.activeServerId);
+                if (!server) return;
+
+                input.value = '';
+                if (server.status !== 'running') {
+                    this.showToast('Server laeuft nicht.', 'warn');
+                    return;
+                }
+
+                // Befehl an Backend (rcon-cli)
+                try {
+                    const result = await API.command(server.id, command.replace(/^\//, ''));
+                    if (result && result.output) {
+                        // Output direkt anhaengen, danach Logs nachladen
+                        server.logs.push(`> ${command}`);
+                        result.output.split('\n').forEach(line => {
+                            if (line.trim()) server.logs.push(line);
+                        });
+                        this.renderConsoleLogs(server);
+                    }
+                    setTimeout(() => this.refreshLogs(server.id), 600);
+                } catch (err) {
+                    this.showToast('Befehl fehlgeschlagen: ' + err.message, 'error');
+                }
+            }
+
+            executeSimulatedCommand(server, commandString) {
+                const command = commandString.toLowerCase();
+                
+                if (server.status !== 'running' && !command.startsWith('/start')) {
+                    this.addLog(server, 'WARN', 'Befehl konnte nicht gesendet werden. Server ist offline.');
+                    this.renderConsoleLogs(server);
+                    return;
+                }
+
+                if (command.startsWith('/help')) {
+                    this.addLog(server, 'INFO', '--- Verfügbare CraftControl Simulator Befehle ---');
+                    this.addLog(server, 'INFO', '/help - Listet alle Befehle auf.');
+                    this.addLog(server, 'INFO', '/op [Spielername] - Erhebt einen Spieler zum Operator.');
+                    this.addLog(server, 'INFO', '/say [Text] - Sendet eine Broadcast-Nachricht.');
+                    this.addLog(server, 'INFO', '/plugins - Listet alle installierten Erweiterungen auf.');
+                    this.addLog(server, 'INFO', '/stop - Stoppt den Server.');
+                    this.addLog(server, 'INFO', '/tps - Zeigt die simulierten Server-Ticks pro Sekunde.');
+                } else if (command.startsWith('/op ')) {
+                    const player = commandString.substring(4).trim();
+                    this.addLog(server, 'INFO', `Made ${player} a server operator`);
+                    this.showToast(`Spieler "${player}" wurde OP-Rechte zugewiesen!`, 'success');
+                } else if (command.startsWith('/say ')) {
+                    const msg = commandString.substring(5).trim();
+                    this.addLog(server, 'INFO', `[Server] Broadcast: ${msg}`);
+                } else if (command.startsWith('/plugins')) {
+                    const list = server.installedExtensions.join(', ');
+                    this.addLog(server, 'INFO', `Installierte Erweiterungen (${server.installedExtensions.length}): ${list || 'Keine'}`);
+                } else if (command.startsWith('/stop')) {
+                    this.executeShutdownSequence(server);
+                } else if (command.startsWith('/tps')) {
+                    const randTps = (19.8 + Math.random() * 0.2).toFixed(2);
+                    this.addLog(server, 'INFO', `TPS: ${randTps} (100% stable, Allocation RAM: ${server.ramMax}GB)`);
+                } else {
+                    this.addLog(server, 'INFO', `Befehl "${commandString}" wurde an Konsole gesendet. (Keine Simulation hinterlegt, aber registriert!)`);
+                }
+                this.renderConsoleLogs(server);
+            }
+
+            clearConsoleLogs() {
+                const server = this.getServer(this.activeServerId);
+                if (server) {
+                    server.logs = [`[${new Date().toLocaleTimeString()} SYSTEM]: Konsole geleert.`];
+                    this.renderConsoleLogs(server);
+                }
+            }
+
+
+            /* --- TAB 2: SOFTWARE CONFIGURATION PANEL --- */
+            renderSoftwareCards(activeSoftware) {
+                const container = document.getElementById('software-selector-cards');
+                container.innerHTML = '';
+
+                INITIAL_SOFTWARE.forEach(sw => {
+                    const card = document.createElement('div');
+                    card.className = `software-card ${sw.id === activeSoftware ? 'active' : ''}`;
+                    card.setAttribute('onclick', `app.selectSoftware('${sw.id}')`);
+
+                    card.innerHTML = `
+                        ${this.getSoftwareSVG(sw.id, false)}
+                        <h4>${sw.name}</h4>
+                        <p>${sw.desc}</p>
+                    `;
+                    container.appendChild(card);
+                });
+            }
+
+            selectSoftware(softwareId) {
+                this.renderSoftwareCards(softwareId);
+                this.showToast(`Engine "${softwareId}" ausgewählt. Drücke "Speichern" zum Übernehmen.`, 'warn');
+            }
+
+            saveSoftwareConfig() {
+                const server = this.getServer(this.activeServerId);
+                if (!server) return;
+
+                // Find currently active card selection
+                const activeCard = document.querySelector('.software-card.active h4');
+                const selectedSoftware = activeCard ? activeCard.innerText : server.software;
+                const selectedVersion = document.getElementById('select-mc-version').value;
+                const selectedRam = parseInt(document.getElementById('input-allocated-ram').value);
+
+                server.software = selectedSoftware;
+                server.version = selectedVersion;
+                server.ramMax = selectedRam;
+
+                this.addLog(server, 'SYSTEM', `Softwarekonfiguration aktualisiert auf: ${selectedSoftware} ${selectedVersion} mit ${selectedRam}GB RAM.`);
+                
+                this.syncAllUIs();
+                this.showToast('Konfiguration gespeichert! Starte den Server neu zum Übernehmen.', 'success');
+
+                // If running, warn user or trigger automatic simulation reboot!
+                if (server.status === 'running') {
+                    this._powerAction(server.id, 'restart');
+                }
+            }
+
+
+            /* --- TAB 3: PLUGINS & MODS WORKFLOW --- */
+            renderPluginsCatalog(searchQuery = '', filterCategory = 'ALL') {
+                const container = document.getElementById('plugin-catalog-list');
+                container.innerHTML = '';
+
+                const server = this.getServer(this.activeServerId);
+                if (!server) return;
+
+                const filtered = PLUGINS_DATABASE.filter(item => {
+                    const matchesSearch = item.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
+                                          item.desc.toLowerCase().includes(searchQuery.toLowerCase());
+                    const matchesCategory = filterCategory === 'ALL' || item.category === filterCategory;
+                    return matchesSearch && matchesCategory;
+                });
+
+                if (filtered.length === 0) {
+                    container.innerHTML = '<div style="color:var(--text-muted); text-align:center; padding: 2rem;">Keine passenden Erweiterungen gefunden.</div>';
+                    return;
+                }
+
+                filtered.forEach(plugin => {
+                    const isInstalled = server.installedExtensions.includes(plugin.id);
+                    const item = document.createElement('div');
+                    item.className = 'plugin-item';
+                    item.innerHTML = `
+                        <div class="plugin-info">
+                            <h4>${plugin.name}</h4>
+                            <p>${plugin.desc}</p>
+                            <div class="plugin-meta-row">
+                                <span class="tag-category">${plugin.category}</span>
+                                <span style="font-size:0.75rem; color: var(--text-muted);">Version: ${plugin.version}</span>
+                            </div>
+                        </div>
+                        <div>
+                            ${isInstalled ? `
+                                <button class="btn btn-danger" style="padding: 6px 12px; font-size: 0.8rem;" onclick="app.uninstallExtension('${plugin.id}')">Entfernen</button>
+                            ` : `
+                                <button class="btn btn-success" style="padding: 6px 12px; font-size: 0.8rem;" onclick="app.installExtension('${plugin.id}')">Installieren</button>
+                            `}
+                        </div>
+                    `;
+                    container.appendChild(item);
+                });
+            }
+
+            filterPluginsCatalog() {
+                const query = document.getElementById('search-plugin-input').value;
+                const cat = document.getElementById('filter-plugin-category').value;
+                this.renderPluginsCatalog(query, cat);
+            }
+
+            installExtension(extId) {
+                const server = this.getServer(this.activeServerId);
+                if (!server) return;
+
+                if (server.installedExtensions.includes(extId)) return;
+
+                // Simulate installation loading sequence
+                this.showToast(`Installiere ${extId}...`, 'warn');
+                
+                setTimeout(() => {
+                    server.installedExtensions.push(extId);
+                    this.addLog(server, 'INFO', `[CraftControl] Extension installed: ${extId} successfully loaded.`);
+                    
+                    this.filterPluginsCatalog();
+                    this.renderInstalledExtensionsList(server);
+                    this.showToast(`${extId} wurde installiert!`, 'success');
+                }, 800);
+            }
+
+            uninstallExtension(extId) {
+                const server = this.getServer(this.activeServerId);
+                if (!server) return;
+
+                const index = server.installedExtensions.indexOf(extId);
+                if (index > -1) {
+                    server.installedExtensions.splice(index, 1);
+                    this.addLog(server, 'INFO', `[CraftControl] Extension uninstalled: ${extId} deleted.`);
+                    
+                    this.filterPluginsCatalog();
+                    this.renderInstalledExtensionsList(server);
+                    this.showToast(`${extId} wurde entfernt!`, 'warn');
+                }
+            }
+
+            renderInstalledExtensionsList(server) {
+                const panel = document.getElementById('installed-plugins-panel');
+                panel.innerHTML = '';
+
+                if (server.installedExtensions.length === 0) {
+                    panel.innerHTML = '<div style="color:var(--text-muted); font-size:0.85rem; text-align:center; padding:1rem 0;">Keine Erweiterungen installiert.</div>';
+                    return;
+                }
+
+                server.installedExtensions.forEach(extId => {
+                    const item = document.createElement('div');
+                    item.className = 'installed-item';
+                    item.innerHTML = `
+                        <span>${extId}</span>
+                        <button class="btn btn-danger btn-circle" style="width:24px; height:24px; font-size: 0.75rem;" title="Deinstallieren" onclick="app.uninstallExtension('${extId}')">
+                            &times;
+                        </button>
+                    `;
+                    panel.appendChild(item);
+                });
+            }
+
+            /* --- PLUGIN DRAG & DROP JAR FILE UPLOAD SYSTEM --- */
+            setupDragAndDrop() {
+                const dropzone = document.getElementById('plugin-upload-dropzone');
+                const fileInput = document.getElementById('plugin-file-upload-input');
+
+                dropzone.addEventListener('click', () => {
+                    fileInput.click();
+                });
+
+                fileInput.addEventListener('change', (e) => {
+                    if (e.target.files.length > 0) {
+                        this.simulateJarFileUpload(e.target.files[0]);
+                    }
+                });
+
+                dropzone.addEventListener('dragover', (e) => {
+                    e.preventDefault();
+                    dropzone.classList.add('dragover');
+                });
+
+                dropzone.addEventListener('dragleave', () => {
+                    dropzone.classList.remove('dragover');
+                });
+
+                dropzone.addEventListener('drop', (e) => {
+                    e.preventDefault();
+                    dropzone.classList.remove('dragover');
+                    if (e.dataTransfer.files.length > 0) {
+                        this.simulateJarFileUpload(e.dataTransfer.files[0]);
+                    }
+                });
+            }
+
+            simulateJarFileUpload(file) {
+                const server = this.getServer(this.activeServerId);
+                if (!server) return;
+
+                if (!file.name.endsWith('.jar')) {
+                    this.showToast('Nur .jar-Dateien sind für Minecraft Server zulässig!', 'error');
+                    return;
+                }
+
+                const filename = file.name;
+                const progressBox = document.getElementById('plugin-upload-progress');
+                const progressBar = document.getElementById('plugin-upload-progress-bar-fill');
+                const filenameLabel = document.getElementById('plugin-upload-filename');
+                const percentLabel = document.getElementById('plugin-upload-percent');
+
+                // Display loading UI
+                filenameLabel.innerText = filename;
+                progressBox.style.display = 'flex';
+                progressBar.style.width = '0%';
+                percentLabel.innerText = '0%';
+
+                let progress = 0;
+                const uploadTimer = setInterval(() => {
+                    progress += 10;
+                    progressBar.style.width = `${progress}%`;
+                    percentLabel.innerText = `${progress}%`;
+
+                    if (progress >= 100) {
+                        clearInterval(uploadTimer);
+                        
+                        setTimeout(() => {
+                            progressBox.style.display = 'none';
+                            
+                            // Strip extension for clean view listing
+                            const cleanName = filename.replace('.jar', '');
+                            if (!server.installedExtensions.includes(cleanName)) {
+                                server.installedExtensions.push(cleanName);
+                                this.addLog(server, 'INFO', `Custom Plugin uploaded: ${filename} added to directories.`);
+                                this.renderInstalledExtensionsList(server);
+                                this.showToast(`"${filename}" erfolgreich hochgeladen und geladen!`, 'success');
+                            } else {
+                                this.showToast('Das Plugin ist bereits vorhanden!', 'warn');
+                            }
+                        }, 500);
+                    }
+                }, 150);
+            }
+
+
+            /* --- TAB 4: BACKUPS MANAGEMENT WORKFLOW --- */
+            renderBackupsTable(server) {
+                const tbody = document.getElementById('backup-list-tbody');
+                tbody.innerHTML = '';
+
+                if (server.backups.length === 0) {
+                    tbody.innerHTML = `
+                        <tr>
+                            <td colspan="4" style="text-align:center; color: var(--text-muted); font-size:0.9rem; padding: 2rem;">
+                                Keine Backups vorhanden. Klicke oben rechts auf "Backup Erstellen".
+                            </td>
+                        </tr>
+                    `;
+                    return;
+                }
+
+                server.backups.forEach(backup => {
+                    const row = document.createElement('tr');
+                    row.innerHTML = `
+                        <td>
+                            <div class="backup-file-name">
+                                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color:var(--accent-color);"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+                                <span>${backup.name}</span>
+                            </div>
+                        </td>
+                        <td style="color:var(--text-muted); font-size:0.9rem;">${backup.date}</td>
+                        <td style="color:var(--text-muted); font-size:0.9rem;">${backup.size}</td>
+                        <td>
+                            <div style="display:flex; gap: 8px;">
+                                <button class="btn btn-secondary" style="padding: 6px 12px; font-size:0.75rem;" title="Einspielen" onclick="app.restoreBackup('${backup.id}')">Restore</button>
+                                <button class="btn btn-secondary btn-circle" style="width:30px; height:30px;" title="Herunterladen" onclick="app.downloadBackup('${backup.name}')">
+                                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                                </button>
+                                <button class="btn btn-danger btn-circle" style="width:30px; height:30px;" title="Löschen" onclick="app.deleteBackup('${backup.id}')">
+                                    &times;
+                                </button>
+                            </div>
+                        </td>
+                    `;
+                    tbody.appendChild(row);
+                });
+            }
+
+            createNewBackup() {
+                const server = this.getServer(this.activeServerId);
+                if (!server) return;
+
+                const btn = document.getElementById('btn-create-backup');
+                const progressBox = document.getElementById('backup-generation-progress');
+                const progressFill = document.getElementById('backup-progress-fill');
+                const percentLabel = document.getElementById('backup-progress-percent');
+
+                // Lock UI
+                btn.disabled = true;
+                progressBox.style.display = 'flex';
+                progressFill.style.width = '0%';
+                percentLabel.innerText = '0%';
+
+                this.addLog(server, 'SYSTEM', 'Starte Backup-Erstellung...');
+
+                let progress = 0;
+                const backupTimer = setInterval(() => {
+                    progress += 10;
+                    progressFill.style.width = `${progress}%`;
+                    percentLabel.innerText = `${progress}%`;
+
+                    if (progress >= 100) {
+                        clearInterval(backupTimer);
+
+                        setTimeout(() => {
+                            // Hide loading UI
+                            progressBox.style.display = 'none';
+                            btn.disabled = false;
+
+                            // Create randomized new backup element
+                            const date = new Date();
+                            const backupName = `backup_${server.name.toLowerCase().replace(/\s+/g, '_')}_${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}_${String(date.getHours()).padStart(2, '0')}-${String(date.getMinutes()).padStart(2, '0')}.tar.gz`;
+                            const backupSize = `${(100 + Math.random() * 800).toFixed(0)} MB`;
+                            const dateFormatted = `${date.toLocaleDateString()}, ${date.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}`;
+
+                            server.backups.unshift({
+                                id: `b-${Date.now()}`,
+                                name: backupName,
+                                date: dateFormatted,
+                                size: backupSize
+                            });
+
+                            this.addLog(server, 'INFO', `Backup ${backupName} successfully packed and indexed.`);
+                            this.renderBackupsTable(server);
+                            this.showToast('Backup wurde erfolgreich erstellt!', 'success');
+                        }, 500);
+                    }
+                }, 200);
+            }
+
+            restoreBackup(backupId) {
+                const server = this.getServer(this.activeServerId);
+                if (!server) return;
+
+                const backup = server.backups.find(b => b.id === backupId);
+                if (!backup) return;
+
+                // Confirm backup restore logic
+                const confirmRestore = confirm(`Möchtest du das Backup "${backup.name}" einspielen? Der aktuelle Serverzustand wird überschrieben.`);
+                if (!confirmRestore) return;
+
+                this.showToast('Backup-Wiederherstellung laeuft...', 'warn');
+                this.addLog(server, 'SYSTEM', `Starte Einspielung von Backup: ${backup.name}`);
+
+                // Echte Wiederherstellung ist nicht im Backend implementiert -
+                // wir starten den Server zumindest neu, um die Geste zu vollziehen.
+                this._powerAction(server.id, 'restart');
+            }
+
+            downloadBackup(backupName) {
+                this.showToast(`Download gestartet: ${backupName}`, 'success');
+                
+                // Simulate downloading file by creating dynamic download trigger
+                const element = document.createElement('a');
+                element.setAttribute('href', 'data:text/plain;charset=utf-8,' + encodeURIComponent('Simulated Minecraft Backup Tar Archive Payload.'));
+                element.setAttribute('download', backupName);
+                element.style.display = 'none';
+                document.body.appendChild(element);
+                element.click();
+                document.body.removeChild(element);
+            }
+
+            deleteBackup(backupId) {
+                const server = this.getServer(this.activeServerId);
+                if (!server) return;
+
+                const index = server.backups.findIndex(b => b.id === backupId);
+                if (index > -1) {
+                    const name = server.backups[index].name;
+                    server.backups.splice(index, 1);
+                    this.renderBackupsTable(server);
+                    this.showToast(`Backup "${name}" wurde gelöscht.`, 'error');
+                }
+            }
+
+
+            /* --- E. GLOBAL HELPER UTILS & TOASTS --- */
+            showToast(message, type = 'success') {
+                const wrapper = document.getElementById('toast-wrapper');
+                const toast = document.createElement('div');
+                toast.className = `toast-msg ${type}`;
+                
+                let icon = '';
+                if (type === 'success') icon = '✓';
+                if (type === 'error') icon = '✗';
+                if (type === 'warn') icon = '⚠';
+
+                toast.innerText = `${icon} ${message}`;
+                wrapper.appendChild(toast);
+
+                // Auto destroy toast after 4s
+                setTimeout(() => {
+                    toast.style.animation = 'slideInToast 0.3s cubic-bezier(0.16, 1, 0.3, 1) reverse forwards';
+                    setTimeout(() => {
+                        toast.remove();
+                    }, 300);
+                }, 3500);
+            }
+
+            // Beautiful SVG selectors representing server software engines
+            getSoftwareSVG(softwareId, isActive) {
+                const activeColor = 'var(--accent-color)';
+                const inactiveColor = 'var(--text-muted)';
+                const color = isActive ? activeColor : inactiveColor;
+
+                switch(softwareId) {
+                    case 'Vanilla':
+                        return `
+                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="32" height="32" fill="none" stroke="${color}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/>
+                                <polyline points="3.27 6.96 12 12.01 20.73 6.96"/>
+                                <line x1="12" y1="22.08" x2="12" y2="12"/>
+                            </svg>
+                        `;
+                    case 'Spigot':
+                        return `
+                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="32" height="32" fill="none" stroke="${color}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/>
+                            </svg>
+                        `;
+                    case 'Paper':
+                        return `
+                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="32" height="32" fill="none" stroke="${color}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                                <polyline points="14 2 14 8 20 8"/>
+                                <line x1="16" y1="13" x2="8" y2="13"/>
+                                <line x1="16" y1="17" x2="8" y2="17"/>
+                                <polyline points="10 9 9 9 8 9"/>
+                            </svg>
+                        `;
+                    case 'Forge':
+                        return `
+                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="32" height="32" fill="none" stroke="${color}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <polygon points="6 2 18 2 18 6 12 11 18 16 18 20 6 20 6 16 12 11 6 6"/>
+                            </svg>
+                        `;
+                    case 'Fabric':
+                        return `
+                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="32" height="32" fill="none" stroke="${color}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+                                <path d="m9 12 2 2 4-4"/>
+                            </svg>
+                        `;
+                    case 'Mohist':
+                        return `
+                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="32" height="32" fill="none" stroke="${color}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <circle cx="12" cy="12" r="10"/>
+                                <path d="M8 14s1.5 2 4 2 4-2 4-2"/>
+                                <line x1="9" y1="9" x2="9.01" y2="9"/>
+                                <line x1="15" y1="9" x2="15.01" y2="9"/>
+                            </svg>
+                        `;
+                    default:
+                        return `
+                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="32" height="32" fill="none" stroke="${color}" stroke-width="2">
+                                <circle cx="12" cy="12" r="10"/>
+                            </svg>
+                        `;
+                }
+            }
+        }
+
+        // Mount global App controller
+        const app = new DashboardApp();
+        window.onload = () => {
+            app.init();
+        };
+
+    </script>
+</body>
+</html>

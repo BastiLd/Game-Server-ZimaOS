@@ -1,0 +1,69 @@
+name: Build & Publish Docker Image
+
+# Triggers:
+#   - Push auf main      -> ghcr.io/bastild/game-server-zimaos:latest (+ sha)
+#   - Push eines Tags v* -> ghcr.io/bastild/game-server-zimaos:1.0.0 (+ latest)
+#   - Manuelles Workflow-Run aus der Actions-UI
+on:
+  push:
+    branches: [main]
+    tags: ['v*.*.*']
+  workflow_dispatch:
+
+env:
+  REGISTRY: ghcr.io
+  # Image-Name MUSS klein geschrieben sein (GHCR-Anforderung)
+  IMAGE_NAME: bastild/game-server-zimaos
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write   # noetig fuer Push nach ghcr.io
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata (tags, labels)
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          tags: |
+            # Versions-Tag aus Git-Tag v1.0.0 -> 1.0.0
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            # Branch-Build (main) -> :main
+            type=ref,event=branch
+            # Commit-SHA-Tag (kurze Form)
+            type=sha,prefix=sha-,format=short
+            # latest nur fuer das Default-Branch UND fuer SemVer-Tags
+            type=raw,value=latest,enable={{is_default_branch}}
+            type=raw,value=latest,enable=${{ startsWith(github.ref, 'refs/tags/v') }}
+
+      - name: Build and push
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./Dockerfile
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max

@@ -1,0 +1,28 @@
+# CraftControl Panel fuer ZimaOS / Docker
+#
+# Das Panel braucht Zugriff auf den Docker-Socket, um Minecraft-Container
+# (itzg/minecraft-server) zu starten, zu stoppen und Stats auszulesen.
+# Der Port-Bereich 25565-25600 wird durchgereicht, damit dynamisch erstellte
+# Server von aussen erreichbar sind.
+
+services:
+  craftcontrol:
+    build: .
+    image: craftcontrol:latest
+    container_name: craftcontrol
+    restart: unless-stopped
+    ports:
+      - "8080:8000"             # Web-UI / API erreichbar unter http://<host>:8080
+      - "25565-25600:25565-25600/tcp"   # Minecraft-Server-Ports (durch Backend zugewiesen)
+    environment:
+      CRAFTCONTROL_IMAGE: itzg/minecraft-server:latest
+      CRAFTCONTROL_PORT_START: "25565"
+      CRAFTCONTROL_PORT_END: "25600"
+      TZ: Europe/Berlin
+    volumes:
+      # Docker-Socket weiterreichen, damit das Panel Container steuern darf.
+      - /var/run/docker.sock:/var/run/docker.sock
+
+  # Hinweis: Die Minecraft-Server-Container werden NICHT hier gestartet.
+  # Sie werden vom Panel zur Laufzeit dynamisch via Docker API erzeugt
+  # und legen ihre Welten in eigenen Docker-Volumes (craftcontrol-<name>-data) ab.
