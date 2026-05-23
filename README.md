@@ -39,6 +39,10 @@ Anschliessend ist das Panel unter <http://HOST:8080> erreichbar.
 | DELETE  | `/api/servers/{id}`               | Server entfernen               |
 | GET     | `/api/servers/{id}/logs?tail=200` | Letzte Konsolen-Zeilen         |
 | POST    | `/api/servers/{id}/command`       | RCON-Befehl senden             |
+| GET     | `/api/servers/{id}/plugins/search?query=&type=auto` | Modrinth-Suche (auto/mod/plugin) |
+| POST    | `/api/servers/{id}/plugins/install` | Plugin/Mod von Modrinth installieren |
+| GET     | `/api/servers/{id}/plugins/installed` | Installierte .jar-Dateien     |
+| DELETE  | `/api/servers/{id}/plugins/installed/{filename}` | Erweiterung entfernen |
 | GET     | `/api/stats`                      | Aggregierte Stats              |
 
 ## Konfiguration ueber Environment-Variablen
@@ -72,8 +76,10 @@ betreibe es ausschliesslich im LAN/VPN.
 
 ## Bekannte Einschraenkungen
 
-- Plugin-/Mod-Katalog und Backup-Tabellen sind weiterhin client-seitig
-  simuliert und werden noch nicht vom Backend persistiert.
+- Backup-Tabellen sind weiterhin client-seitig simuliert und werden noch nicht
+  vom Backend persistiert.
 - Spielerzahlen werden derzeit nicht ausgelesen (Anzeige immer `0 / 20`).
+- Die "eigene .jar hochladen"-Dropzone ist weiterhin nur visuell - reale
+  Uploads bitte ueber den Modrinth-Katalog installieren.
 - Der Theme-Switcher ist im UI deaktiviert; die CSS-Variablen sind aber
   vorbereitet, sodass spaeter ueber `data-theme` gewechselt werden kann.

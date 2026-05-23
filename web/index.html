@@ -1693,9 +1693,9 @@
                                         <input type="text" class="form-control search-control" id="search-plugin-input" placeholder="Plugin oder Mod suchen..." oninput="app.filterPluginsCatalog()">
                                     </div>
                                     <select class="form-control" style="width: auto; min-width: 140px;" id="filter-plugin-category" onchange="app.filterPluginsCatalog()">
-                                        <option value="ALL">Alle Typen</option>
-                                        <option value="PLUGIN">Nur Plugins</option>
-                                        <option value="MOD">Nur Mods</option>
+                                        <option value="auto">Auto (Software-passend)</option>
+                                        <option value="plugin">Nur Plugins</option>
+                                        <option value="mod">Nur Mods</option>
                                     </select>
                                 </div>
 
@@ -1909,6 +1909,14 @@
                 logs:        (id, tail = 200) => req('GET', `/api/servers/${id}/logs?tail=${tail}`),
                 command:     (id, command) => req('POST', `/api/servers/${id}/command`, { command }),
                 stats:       () => req('GET', '/api/stats'),
+                // Plugin / Mod (Modrinth)
+                searchPlugins: (id, query, type = 'auto', limit = 20) =>
+                    req('GET', `/api/servers/${id}/plugins/search?query=${encodeURIComponent(query || '')}&type=${type}&limit=${limit}`),
+                installPlugin: (id, projectId, versionId) =>
+                    req('POST', `/api/servers/${id}/plugins/install`, { project_id: projectId, version_id: versionId || null }),
+                installedPlugins: (id) => req('GET', `/api/servers/${id}/plugins/installed`),
+                deleteInstalledPlugin: (id, filename) =>
+                    req('DELETE', `/api/servers/${id}/plugins/installed/${encodeURIComponent(filename)}`),
             };
         })();
 
@@ -2141,7 +2149,7 @@
                 this.switchTab('status');
                 this.updateResourceMeters(server);
                 this.renderBackupsTable(server);
-                this.renderInstalledExtensionsList(server);
+                this.loadInstalledExtensions(server);
                 this.renderSoftwareCards(server.software);
 
                 // Pre-fill versions configuration
@@ -2167,6 +2175,8 @@
 
                 if (tabId === 'plugins') {
                     this.renderPluginsCatalog();
+                    const server = this.getServer(this.activeServerId);
+                    if (server) this.loadInstalledExtensions(server);
                 }
             }
 
@@ -2763,47 +2773,74 @@
             }
 
 
-            /* --- TAB 3: PLUGINS & MODS WORKFLOW --- */
-            renderPluginsCatalog(searchQuery = '', filterCategory = 'ALL') {
+            /* --- TAB 3: PLUGINS & MODS WORKFLOW (Modrinth) --- */
+            // Wird aus dem Tab-Wechsel und durch das Suchfeld aufgerufen.
+            async renderPluginsCatalog(searchQuery = '', filterCategory = 'auto') {
                 const container = document.getElementById('plugin-catalog-list');
-                container.innerHTML = '';
+                if (!container) return;
 
                 const server = this.getServer(this.activeServerId);
                 if (!server) return;
 
-                const filtered = PLUGINS_DATABASE.filter(item => {
-                    const matchesSearch = item.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
-                                          item.desc.toLowerCase().includes(searchQuery.toLowerCase());
-                    const matchesCategory = filterCategory === 'ALL' || item.category === filterCategory;
-                    return matchesSearch && matchesCategory;
-                });
+                container.innerHTML = '<div style="color:var(--text-muted); text-align:center; padding: 1.5rem;">Suche auf modrinth.com ...</div>';
 
-                if (filtered.length === 0) {
-                    container.innerHTML = '<div style="color:var(--text-muted); text-align:center; padding: 2rem;">Keine passenden Erweiterungen gefunden.</div>';
+                let data;
+                try {
+                    data = await API.searchPlugins(server.id, searchQuery, filterCategory, 25);
+                } catch (err) {
+                    container.innerHTML = `<div style="color:var(--status-offline); text-align:center; padding: 1.5rem;">Modrinth-Suche fehlgeschlagen: ${this._escape(err.message)}</div>`;
                     return;
                 }
 
-                filtered.forEach(plugin => {
-                    const isInstalled = server.installedExtensions.includes(plugin.id);
+                const installed = new Set((server.installedExtensions || []).map(x => (x.id || x).toLowerCase()));
+                const results = data.results || [];
+                container.innerHTML = '';
+
+                if (results.length === 0) {
+                    container.innerHTML = `<div style="color:var(--text-muted); text-align:center; padding: 2rem;">
+                        Keine Treffer fuer "${this._escape(searchQuery || '')}" (${data.kind} fuer ${this._escape(data.version || 'beliebig')}).
+                    </div>`;
+                    return;
+                }
+
+                results.forEach(plugin => {
+                    const candidate = (plugin.slug || '').toLowerCase();
+                    const isInstalledHint = [...installed].some(name => name.includes(candidate));
+
                     const item = document.createElement('div');
                     item.className = 'plugin-item';
                     item.innerHTML = `
-                        <div class="plugin-info">
-                            <h4>${plugin.name}</h4>
-                            <p>${plugin.desc}</p>
-                            <div class="plugin-meta-row">
-                                <span class="tag-category">${plugin.category}</span>
-                                <span style="font-size:0.75rem; color: var(--text-muted);">Version: ${plugin.version}</span>
+                        <div class="plugin-info" style="display:flex; gap:0.85rem; align-items:flex-start;">
+                            ${plugin.icon_url
+                                ? `<img src="${this._escape(plugin.icon_url)}" alt="" loading="lazy" style="width:42px; height:42px; border-radius:8px; object-fit:cover; flex:0 0 42px; background:var(--bg-tertiary);">`
+                                : ''}
+                            <div style="flex:1; min-width:0;">
+                                <h4 style="display:flex; align-items:center; gap:6px;">
+                                    ${this._escape(plugin.title || plugin.slug)}
+                                    <span class="tag-category">${this._escape((plugin.project_type || '').toUpperCase())}</span>
+                                </h4>
+                                <p style="margin-top:2px;">${this._escape(plugin.description || '')}</p>
+                                <div class="plugin-meta-row" style="margin-top:6px;">
+                                    <span style="font-size:0.75rem; color: var(--text-muted);">
+                                        ${plugin.downloads ? plugin.downloads.toLocaleString('de-DE') + ' Downloads' : ''}
+                                    </span>
+                                    <a href="${this._escape(plugin.url)}" target="_blank" rel="noopener"
+                                       style="font-size:0.75rem; color: var(--accent-color); text-decoration:none;">
+                                        modrinth.com
+                                    </a>
+                                </div>
                             </div>
                         </div>
                         <div>
-                            ${isInstalled ? `
-                                <button class="btn btn-danger" style="padding: 6px 12px; font-size: 0.8rem;" onclick="app.uninstallExtension('${plugin.id}')">Entfernen</button>
-                            ` : `
-                                <button class="btn btn-success" style="padding: 6px 12px; font-size: 0.8rem;" onclick="app.installExtension('${plugin.id}')">Installieren</button>
-                            `}
+                            <button class="btn btn-success" style="padding: 6px 12px; font-size: 0.8rem;"
+                                    data-pid="${this._escape(plugin.project_id)}"
+                                    data-name="${this._escape(plugin.title || plugin.slug)}">
+                                ${isInstalledHint ? 'Erneut laden' : 'Installieren'}
+                            </button>
                         </div>
                     `;
+                    const btn = item.querySelector('button');
+                    btn.addEventListener('click', () => this.installExtension(btn.dataset.pid, btn.dataset.name, btn));
                     container.appendChild(item);
                 });
             }
@@ -2811,63 +2848,106 @@
             filterPluginsCatalog() {
                 const query = document.getElementById('search-plugin-input').value;
                 const cat = document.getElementById('filter-plugin-category').value;
-                this.renderPluginsCatalog(query, cat);
+                clearTimeout(this._pluginSearchTimer);
+                this._pluginSearchTimer = setTimeout(() => {
+                    this.renderPluginsCatalog(query, cat);
+                }, 350);
             }
 
-            installExtension(extId) {
+            async installExtension(projectId, displayName, btn) {
                 const server = this.getServer(this.activeServerId);
-                if (!server) return;
+                if (!server || !projectId) return;
 
-                if (server.installedExtensions.includes(extId)) return;
-
-                // Simulate installation loading sequence
-                this.showToast(`Installiere ${extId}...`, 'warn');
-                
-                setTimeout(() => {
-                    server.installedExtensions.push(extId);
-                    this.addLog(server, 'INFO', `[CraftControl] Extension installed: ${extId} successfully loaded.`);
-                    
-                    this.filterPluginsCatalog();
-                    this.renderInstalledExtensionsList(server);
-                    this.showToast(`${extId} wurde installiert!`, 'success');
-                }, 800);
-            }
-
-            uninstallExtension(extId) {
-                const server = this.getServer(this.activeServerId);
-                if (!server) return;
-
-                const index = server.installedExtensions.indexOf(extId);
-                if (index > -1) {
-                    server.installedExtensions.splice(index, 1);
-                    this.addLog(server, 'INFO', `[CraftControl] Extension uninstalled: ${extId} deleted.`);
-                    
-                    this.filterPluginsCatalog();
-                    this.renderInstalledExtensionsList(server);
-                    this.showToast(`${extId} wurde entfernt!`, 'warn');
+                if (btn) {
+                    btn.disabled = true;
+                    btn.innerText = 'Lade...';
                 }
+                this.showToast(`Installiere ${displayName || projectId} ...`, 'warn');
+
+                try {
+                    const res = await API.installPlugin(server.id, projectId);
+                    this.addLog(server, 'INFO', `[CraftControl] Plugin installiert: ${res.filename} (${res.version_number || 'latest'})`);
+                    this.showToast(`${res.filename} installiert. Neustart empfohlen.`, 'success');
+                    await this.loadInstalledExtensions(server);
+                } catch (err) {
+                    console.error(err);
+                    this.showToast('Installation fehlgeschlagen: ' + err.message, 'error');
+                } finally {
+                    if (btn) {
+                        btn.disabled = false;
+                        btn.innerText = 'Erneut laden';
+                    }
+                }
+            }
+
+            async uninstallExtension(filename) {
+                const server = this.getServer(this.activeServerId);
+                if (!server || !filename) return;
+
+                if (!confirm(`"${filename}" wirklich entfernen?`)) return;
+
+                try {
+                    await API.deleteInstalledPlugin(server.id, filename);
+                    this.addLog(server, 'INFO', `[CraftControl] Erweiterung entfernt: ${filename}`);
+                    this.showToast(`${filename} wurde entfernt.`, 'warn');
+                    await this.loadInstalledExtensions(server);
+                } catch (err) {
+                    this.showToast('Entfernen fehlgeschlagen: ' + err.message, 'error');
+                }
+            }
+
+            // Holt die echten installierten .jar-Dateien aus dem Container
+            async loadInstalledExtensions(server) {
+                if (!server) return;
+                try {
+                    const data = await API.installedPlugins(server.id);
+                    server.installedExtensions = (data.items || []).map(it => ({
+                        id: it.name,
+                        name: it.name,
+                        size: it.size,
+                    }));
+                } catch (err) {
+                    server.installedExtensions = [];
+                    console.warn('installedPlugins failed:', err);
+                }
+                this.renderInstalledExtensionsList(server);
             }
 
             renderInstalledExtensionsList(server) {
                 const panel = document.getElementById('installed-plugins-panel');
+                if (!panel) return;
                 panel.innerHTML = '';
 
-                if (server.installedExtensions.length === 0) {
+                const items = server.installedExtensions || [];
+                if (items.length === 0) {
                     panel.innerHTML = '<div style="color:var(--text-muted); font-size:0.85rem; text-align:center; padding:1rem 0;">Keine Erweiterungen installiert.</div>';
                     return;
                 }
 
-                server.installedExtensions.forEach(extId => {
+                items.forEach(ext => {
+                    const filename = (ext && (ext.id || ext.name)) || ext;
+                    const sizeKb = ext && ext.size ? ` (${(ext.size / 1024).toFixed(0)} KB)` : '';
                     const item = document.createElement('div');
                     item.className = 'installed-item';
                     item.innerHTML = `
-                        <span>${extId}</span>
-                        <button class="btn btn-danger btn-circle" style="width:24px; height:24px; font-size: 0.75rem;" title="Deinstallieren" onclick="app.uninstallExtension('${extId}')">
+                        <span title="${this._escape(filename)}">${this._escape(filename)}<span style="color:var(--text-muted); font-size:0.75rem;">${sizeKb}</span></span>
+                        <button class="btn btn-danger btn-circle" style="width:24px; height:24px; font-size: 0.75rem;" title="Deinstallieren" data-file="${this._escape(filename)}">
                             &times;
                         </button>
                     `;
+                    item.querySelector('button').addEventListener('click', (e) => {
+                        e.stopPropagation();
+                        this.uninstallExtension(e.currentTarget.dataset.file);
+                    });
                     panel.appendChild(item);
                 });
+            }
+
+            // Mini-Helper gegen XSS in den eingefuegten Modrinth-Strings
+            _escape(s) {
+                return String(s == null ? '' : s)
+                    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+                    .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
             }
 
             /* --- PLUGIN DRAG & DROP JAR FILE UPLOAD SYSTEM --- */
@@ -2932,20 +3012,12 @@
 
                     if (progress >= 100) {
                         clearInterval(uploadTimer);
-                        
+
                         setTimeout(() => {
                             progressBox.style.display = 'none';
-                            
-                            // Strip extension for clean view listing
-                            const cleanName = filename.replace('.jar', '');
-                            if (!server.installedExtensions.includes(cleanName)) {
-                                server.installedExtensions.push(cleanName);
-                                this.addLog(server, 'INFO', `Custom Plugin uploaded: ${filename} added to directories.`);
-                                this.renderInstalledExtensionsList(server);
-                                this.showToast(`"${filename}" erfolgreich hochgeladen und geladen!`, 'success');
-                            } else {
-                                this.showToast('Das Plugin ist bereits vorhanden!', 'warn');
-                            }
+                            // Hinweis: das echte Hochladen ist (noch) nicht im
+                            // Backend implementiert - wir zeigen nur eine Toast.
+                            this.showToast(`Lokaler Upload "${filename}" ist nur visuell. Bitte ueber den Modrinth-Katalog installieren.`, 'warn');
                         }, 500);
                     }
                 }, 150);

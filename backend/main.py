@@ -20,14 +20,19 @@ API-Endpunkte:
 
 from __future__ import annotations
 
+import io
 import logging
 import os
+import re
+import shlex
+import tarfile
 import threading
 import time
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 import docker
+import httpx
 from docker.errors import APIError, NotFound
 from docker.models.containers import Container
 from fastapi import FastAPI, HTTPException
@@ -71,6 +76,23 @@ SOFTWARE_TYPE_MAP: Dict[str, str] = {
     "Mohist": "MOHIST",
 }
 
+# Welche Software laedt aus welchem Verzeichnis und welchen Modrinth-Loader
+# verwendet sie? "kind" steuert die Filter im Modrinth-Such-Endpoint:
+#   - "plugin" -> nur Bukkit-Plugins (Spigot/Paper/Mohist)
+#   - "mod"    -> nur Mods (Forge/Fabric)
+#   - "any"    -> beides (Vanilla/unklar)
+SOFTWARE_PROFILE: Dict[str, Dict[str, Any]] = {
+    "Vanilla": {"dir": "plugins", "loaders": [],                "kind": "any"},
+    "Spigot":  {"dir": "plugins", "loaders": ["spigot", "bukkit", "paper"], "kind": "plugin"},
+    "Paper":   {"dir": "plugins", "loaders": ["paper", "spigot", "bukkit"], "kind": "plugin"},
+    "Mohist":  {"dir": "plugins", "loaders": ["paper", "spigot", "bukkit"], "kind": "plugin"},
+    "Forge":   {"dir": "mods",    "loaders": ["forge", "neoforge"],         "kind": "mod"},
+    "Fabric":  {"dir": "mods",    "loaders": ["fabric", "quilt"],           "kind": "mod"},
+}
+
+MODRINTH_BASE = "https://api.modrinth.com/v2"
+MODRINTH_UA = "CraftControl/1.0 (+https://github.com/BastiLd/Game-Server-ZimaOS)"
+
 # ---------------------------------------------------------------------------
 # Docker-Client (lazy, damit der Service auch ohne Docker startet)
 # ---------------------------------------------------------------------------
@@ -99,6 +121,11 @@ class ServerCreate(BaseModel):
 
 class CommandRequest(BaseModel):
     command: str
+
+
+class PluginInstallRequest(BaseModel):
+    project_id: str = Field(..., min_length=1)
+    version_id: Optional[str] = None  # falls eine bestimmte Version gewuenscht ist
 
 
 class ServerInfo(BaseModel):
@@ -441,6 +468,255 @@ def health() -> Dict[str, Any]:
         return {"status": "ok", "docker": info.get("Version")}
     except Exception as exc:  # noqa: BLE001
         return {"status": "degraded", "error": str(exc)}
+
+
+# ---------------------------------------------------------------------------
+# Modrinth-Integration
+# ---------------------------------------------------------------------------
+SAFE_FILE_RE = re.compile(r"^[A-Za-z0-9._\-+ ]+\.jar$")
+
+
+def _profile_for(server_software: str) -> Dict[str, Any]:
+    return SOFTWARE_PROFILE.get(server_software, SOFTWARE_PROFILE["Vanilla"])
+
+
+def _plugin_dir_for(container: Container) -> str:
+    """Liefert das Server-Verzeichnis (mods oder plugins), abhaengig von der Software."""
+    sw = container.labels.get(SOFTWARE_LABEL) or "Vanilla"
+    return f"/data/{_profile_for(sw)['dir']}"
+
+
+async def _modrinth_get(client: httpx.AsyncClient, path: str, params: Optional[Dict[str, Any]] = None) -> Any:
+    url = f"{MODRINTH_BASE}{path}"
+    try:
+        resp = await client.get(url, params=params, headers={"User-Agent": MODRINTH_UA}, timeout=15)
+    except httpx.HTTPError as exc:
+        raise HTTPException(502, f"Modrinth nicht erreichbar: {exc}")
+    if resp.status_code >= 400:
+        raise HTTPException(resp.status_code, f"Modrinth-Fehler: {resp.text[:200]}")
+    return resp.json()
+
+
+def _container_exec(container: Container, cmd: List[str]) -> tuple[int, str]:
+    """Fuehrt einen Befehl im Container aus und gibt (exit, output) zurueck."""
+    res = container.exec_run(cmd, demux=False)
+    return res.exit_code, (res.output or b"").decode("utf-8", errors="replace")
+
+
+def _ensure_plugin_dir(container: Container, plugin_dir: str) -> None:
+    code, _ = _container_exec(container, ["mkdir", "-p", plugin_dir])
+    if code != 0:
+        raise HTTPException(500, f"Konnte Verzeichnis {plugin_dir} nicht anlegen")
+
+
+def _put_file_into_container(container: Container, target_dir: str, filename: str, payload: bytes) -> None:
+    """Packt den Bytes-Inhalt als tar und legt ihn im Container ab."""
+    buf = io.BytesIO()
+    with tarfile.open(fileobj=buf, mode="w") as tar:
+        info = tarfile.TarInfo(name=filename)
+        info.size = len(payload)
+        info.mode = 0o644
+        info.mtime = int(time.time())
+        tar.addfile(info, io.BytesIO(payload))
+    buf.seek(0)
+    if not container.put_archive(target_dir, buf.getvalue()):
+        raise HTTPException(500, "Datei konnte nicht in den Container kopiert werden")
+
+
+def _list_jars(container: Container, plugin_dir: str) -> List[Dict[str, Any]]:
+    code, out = _container_exec(
+        container,
+        ["sh", "-c", f"ls -1 -la {shlex.quote(plugin_dir)} 2>/dev/null | awk '$1 !~ /^d/ {{print $5\"\\t\"$NF}}' | grep -E '\\.jar$' || true"],
+    )
+    if code != 0:
+        return []
+    items: List[Dict[str, Any]] = []
+    for line in out.splitlines():
+        if "\t" not in line:
+            continue
+        size_str, name = line.split("\t", 1)
+        try:
+            size = int(size_str)
+        except ValueError:
+            size = 0
+        if name and name.endswith(".jar"):
+            items.append({"id": name, "name": name, "size": size})
+    return items
+
+
+def _safe_plugin_filename(name: str) -> str:
+    if not SAFE_FILE_RE.match(name):
+        raise HTTPException(400, f"Ungueltiger Dateiname: {name}")
+    return name
+
+
+# -------- API: Modrinth Suche ----------------------------------------------
+@app.get("/api/servers/{server_id}/plugins/search")
+async def search_plugins(
+    server_id: str,
+    query: str = "",
+    type: str = "auto",     # auto | mod | plugin
+    limit: int = 20,
+) -> Dict[str, Any]:
+    container = _get_container(server_id)
+    sw = container.labels.get(SOFTWARE_LABEL) or "Vanilla"
+    version = container.labels.get(VERSION_LABEL) or ""
+
+    profile = _profile_for(sw)
+    if type == "auto":
+        kind = profile["kind"]
+    elif type in ("mod", "plugin"):
+        kind = type
+    else:
+        raise HTTPException(400, "type muss 'auto', 'mod' oder 'plugin' sein")
+
+    # Modrinth-Facets: project_type + Loader + game_version
+    facets: List[List[str]] = []
+    if kind == "plugin":
+        facets.append(["project_type:plugin"])
+    elif kind == "mod":
+        facets.append(["project_type:mod"])
+    else:
+        facets.append(["project_type:mod", "project_type:plugin"])
+
+    if profile["loaders"]:
+        facets.append([f"categories:{l}" for l in profile["loaders"]])
+
+    if version:
+        facets.append([f"versions:{version}"])
+
+    params = {
+        "query": query,
+        "limit": max(1, min(limit, 50)),
+        "facets": _to_facets_json(facets),
+        "index": "relevance",
+    }
+
+    async with httpx.AsyncClient() as client:
+        data = await _modrinth_get(client, "/search", params=params)
+
+    hits = []
+    for hit in data.get("hits", []):
+        hits.append({
+            "project_id": hit.get("project_id") or hit.get("slug"),
+            "slug": hit.get("slug"),
+            "title": hit.get("title"),
+            "description": hit.get("description"),
+            "downloads": hit.get("downloads"),
+            "icon_url": hit.get("icon_url"),
+            "categories": hit.get("categories", []),
+            "project_type": hit.get("project_type"),
+            "latest_version": hit.get("latest_version"),
+            "url": f"https://modrinth.com/{hit.get('project_type', 'mod')}/{hit.get('slug')}",
+        })
+    return {
+        "query": query,
+        "kind": kind,
+        "loaders": profile["loaders"],
+        "version": version,
+        "total": data.get("total_hits", len(hits)),
+        "results": hits,
+    }
+
+
+def _to_facets_json(groups: List[List[str]]) -> str:
+    """Konvertiert facet-Gruppen zu Modrinth-JSON: [["a:1"],["b:2","b:3"]]."""
+    import json
+    quoted = [[s for s in g] for g in groups if g]
+    return json.dumps(quoted, separators=(",", ":"))
+
+
+# -------- API: Modrinth Installieren ---------------------------------------
+@app.post("/api/servers/{server_id}/plugins/install")
+async def install_plugin(server_id: str, payload: PluginInstallRequest) -> Dict[str, Any]:
+    container = _get_container(server_id)
+    sw = container.labels.get(SOFTWARE_LABEL) or "Vanilla"
+    mc_version = container.labels.get(VERSION_LABEL) or ""
+    profile = _profile_for(sw)
+    plugin_dir = f"/data/{profile['dir']}"
+
+    async with httpx.AsyncClient() as client:
+        # 1) Passende Version finden
+        if payload.version_id:
+            version = await _modrinth_get(client, f"/version/{payload.version_id}")
+            if not version:
+                raise HTTPException(404, "Version nicht gefunden")
+        else:
+            params: Dict[str, Any] = {}
+            if profile["loaders"]:
+                params["loaders"] = _to_facets_json([profile["loaders"]])
+            if mc_version:
+                params["game_versions"] = _to_facets_json([[mc_version]])
+
+            versions = await _modrinth_get(client, f"/project/{payload.project_id}/version", params=params)
+            if not isinstance(versions, list) or not versions:
+                raise HTTPException(404, f"Keine kompatible Version fuer {sw} {mc_version} gefunden")
+            # Erste Version ist die neueste
+            version = versions[0]
+
+        files = version.get("files") or []
+        if not files:
+            raise HTTPException(404, "Modrinth-Version enthaelt keine Dateien")
+        primary = next((f for f in files if f.get("primary")), files[0])
+        download_url = primary.get("url")
+        filename = primary.get("filename") or f"{payload.project_id}.jar"
+        if not download_url or not filename.lower().endswith(".jar"):
+            raise HTTPException(400, "Nur .jar-Dateien werden unterstuetzt")
+
+        safe_name = _safe_plugin_filename(filename)
+
+        # 2) Datei laden
+        try:
+            r = await client.get(download_url, headers={"User-Agent": MODRINTH_UA}, timeout=120, follow_redirects=True)
+        except httpx.HTTPError as exc:
+            raise HTTPException(502, f"Download fehlgeschlagen: {exc}")
+        if r.status_code >= 400:
+            raise HTTPException(r.status_code, f"Download fehlgeschlagen: {r.text[:200]}")
+
+    # 3) In den Container schreiben
+    _ensure_plugin_dir(container, plugin_dir)
+    _put_file_into_container(container, plugin_dir, safe_name, r.content)
+
+    log.info("Plugin %s (%s) installiert in %s:%s",
+             safe_name, payload.project_id, container.name, plugin_dir)
+
+    return {
+        "status": "installed",
+        "filename": safe_name,
+        "project_id": payload.project_id,
+        "version_id": version.get("id"),
+        "version_number": version.get("version_number"),
+        "directory": plugin_dir,
+        "size": len(r.content),
+        "needs_restart": True,
+    }
+
+
+# -------- API: Installierte Erweiterungen lesen / loeschen ------------------
+@app.get("/api/servers/{server_id}/plugins/installed")
+def list_installed_plugins(server_id: str) -> Dict[str, Any]:
+    container = _get_container(server_id)
+    plugin_dir = _plugin_dir_for(container)
+    items = _list_jars(container, plugin_dir)
+    return {"directory": plugin_dir, "items": items}
+
+
+@app.delete("/api/servers/{server_id}/plugins/installed/{filename}")
+def delete_installed_plugin(server_id: str, filename: str) -> Dict[str, Any]:
+    container = _get_container(server_id)
+    plugin_dir = _plugin_dir_for(container)
+    safe_name = _safe_plugin_filename(filename)
+
+    # Pruefen, ob Datei existiert (Path-Traversal kann nicht passieren wegen Regex)
+    target = f"{plugin_dir}/{safe_name}"
+    code, _ = _container_exec(container, ["test", "-f", target])
+    if code != 0:
+        raise HTTPException(404, "Datei nicht gefunden")
+
+    code, out = _container_exec(container, ["rm", "-f", target])
+    if code != 0:
+        raise HTTPException(500, f"Loeschen fehlgeschlagen: {out}")
+    return {"status": "deleted", "filename": safe_name, "needs_restart": True}
 
 
 # ---------------------------------------------------------------------------
