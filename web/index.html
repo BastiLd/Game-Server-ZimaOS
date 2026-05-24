@@ -1833,6 +1833,102 @@
             font-size: 0.85rem;
             padding: 1rem 0;
         }
+
+        /* ==========================================================================
+           14. v1.0.7 - Tunnel-Wizard, Plugin-Badges, File-Hint
+           ========================================================================== */
+        .tunnel-wizard {
+            list-style: none;
+            margin: 0.85rem 0 0 0;
+            padding: 8px;
+            background: var(--bg-primary);
+            border: 1px solid var(--border-glass);
+            border-radius: var(--radius-sm);
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+        }
+        .tunnel-wizard li {
+            flex: 1 1 auto;
+            min-width: 140px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 6px 10px;
+            border-radius: var(--radius-sm);
+            background: rgba(255,255,255,0.02);
+            border: 1px solid var(--border-glass);
+            font-size: 0.75rem;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.04em;
+        }
+        .tw-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: var(--text-muted);
+            box-shadow: 0 0 0 0 transparent;
+        }
+        .tunnel-wizard li.done   { color: var(--text-main); border-color: rgba(255,255,255,0.18); }
+        .tunnel-wizard li.done .tw-dot { background: var(--status-online); box-shadow: 0 0 6px var(--status-online-glow); }
+        .tunnel-wizard li.active { color: var(--accent-color); border-color: var(--accent-color); }
+        .tunnel-wizard li.active .tw-dot { background: var(--accent-color); box-shadow: 0 0 8px var(--accent-glow); animation: pulse 1.4s infinite; }
+        .tunnel-wizard li.warn   { color: #ffcc66; border-color: rgba(255,200,80,0.45); }
+        .tunnel-wizard li.warn .tw-dot { background: #ffb54a; box-shadow: 0 0 6px rgba(255,180,80,0.4); }
+        .tunnel-wizard li.error  { color: #ff7575; border-color: rgba(255,90,90,0.45); }
+        .tunnel-wizard li.error .tw-dot { background: #ff5e5e; box-shadow: 0 0 6px rgba(255,90,90,0.5); }
+
+        /* Plugin-Karten Badges */
+        .plugin-classification {
+            font-size: 0.65rem;
+            padding: 1px 6px;
+            margin-left: 4px;
+            border-radius: 3px;
+            background: var(--bg-tertiary);
+            border: 1px solid var(--border-glass);
+            text-transform: uppercase;
+            letter-spacing: 0.04em;
+        }
+        .plugin-classification.plugin { color: hsl(190, 95%, 65%); border-color: rgba(64,200,255,0.35); }
+        .plugin-classification.mod    { color: hsl(280, 90%, 70%); border-color: rgba(190,140,255,0.35); }
+        .plugin-classification.hybrid { color: hsl(45, 100%, 65%); border-color: rgba(255,200,80,0.35); }
+        .plugin-classification.unknown{ color: var(--text-muted); }
+
+        .plugin-loader-pill {
+            display: inline-block;
+            font-size: 0.6rem;
+            padding: 1px 6px;
+            margin-right: 3px;
+            border-radius: 3px;
+            background: rgba(255,255,255,0.04);
+            border: 1px solid var(--border-glass);
+            color: var(--text-muted);
+        }
+        .plugin-target-line {
+            font-size: 0.7rem;
+            color: var(--text-muted);
+            margin-top: 4px;
+        }
+        .plugin-clientside-warn {
+            color: #ffb14a;
+            font-size: 0.7rem;
+        }
+
+        /* File editor: Hint-Banner fuer optionale Dateien, die noch nicht existieren */
+        .file-hint-banner {
+            background: rgba(255,200,80,0.08);
+            border: 1px solid rgba(255,200,80,0.35);
+            color: #ffd07a;
+            border-radius: var(--radius-sm);
+            padding: 6px 10px;
+            font-size: 0.75rem;
+            margin-bottom: 0.5rem;
+        }
+        .file-list-item .badge-missing.optional {
+            color: #ffb14a;
+            border-color: rgba(255,200,80,0.45);
+        }
     </style>
 </head>
 <body>
@@ -2083,6 +2179,27 @@
                                             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
                                         </button>
                                     </div>
+
+                                    <!-- v1.0.7: Setup-Wizard -->
+                                    <ol id="tunnel-wizard" class="tunnel-wizard" style="display:none;">
+                                        <li data-step="image_pull"><span class="tw-dot"></span><span>Image gezogen</span></li>
+                                        <li data-step="agent_started"><span class="tw-dot"></span><span>Agent gestartet</span></li>
+                                        <li data-step="auth_required"><span class="tw-dot"></span><span>Token / Auth nötig</span></li>
+                                        <li data-step="active"><span class="tw-dot"></span><span>Tunnel aktiv</span></li>
+                                    </ol>
+
+                                    <div id="tunnel-claim-row" style="display:none; margin-top:0.5rem; font-size:0.78rem;">
+                                        <span style="color:var(--text-muted);">Claim-Link: </span>
+                                        <a id="tunnel-claim-link" href="#" target="_blank" rel="noopener" style="color:var(--accent-color); text-decoration:none; word-break:break-all;"></a>
+                                    </div>
+
+                                    <details id="tunnel-logs-details" style="display:none; margin-top:0.5rem;">
+                                        <summary style="cursor:pointer; color:var(--text-muted); font-size:0.75rem;">playit-Logs anzeigen</summary>
+                                        <pre id="tunnel-logs-pre" style="margin-top:6px; max-height:160px; overflow:auto; background:#06080e; color:#d8dee9; border:1px solid var(--border-glass); border-radius:var(--radius-sm); padding:8px; font-size:0.72rem; font-family:var(--font-mono); white-space:pre-wrap;"></pre>
+                                    </details>
+
+                                    <div id="tunnel-message" style="display:none; margin-top:0.5rem; color:var(--text-muted); font-size:0.78rem;"></div>
+
                                     <div style="display:flex; gap:0.5rem; margin-top:0.6rem;">
                                         <button class="btn btn-primary" id="btn-tunnel-start" onclick="app.startTunnel()" style="padding: 6px 12px; font-size: 0.75rem;">Tunnel starten</button>
                                         <button class="btn btn-secondary" id="btn-tunnel-stop" onclick="app.stopTunnel()" style="padding: 6px 12px; font-size: 0.75rem; display:none;">Tunnel stoppen</button>
@@ -2226,13 +2343,7 @@
                                     <div class="form-group">
                                         <label for="select-mc-version">Minecraft-Version</label>
                                         <select class="form-control" id="select-mc-version">
-                                            <option value="1.21.1">1.21.1 (Neueste Version)</option>
-                                            <option value="1.21">1.21</option>
-                                            <option value="1.20.4">1.20.4</option>
-                                            <option value="1.20.1">1.20.1</option>
-                                            <option value="1.19.4">1.19.4</option>
-                                            <option value="1.18.2">1.18.2</option>
-                                            <option value="1.16.5">1.16.5 (Retro-Modding)</option>
+                                            <option value="1.21.1">1.21.1 (Standard)</option>
                                         </select>
                                     </div>
                                     <div class="form-group">
@@ -2277,10 +2388,11 @@
                                         <svg class="search-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
                                         <input type="text" class="form-control search-control" id="search-plugin-input" placeholder="Plugin oder Mod suchen..." oninput="app.filterPluginsCatalog()">
                                     </div>
-                                    <select class="form-control" style="width: auto; min-width: 140px;" id="filter-plugin-category" onchange="app.filterPluginsCatalog()">
+                                    <select class="form-control" style="width: auto; min-width: 160px;" id="filter-plugin-category" onchange="app.filterPluginsCatalog()">
                                         <option value="auto">Auto (Software-passend)</option>
                                         <option value="plugin">Nur Plugins</option>
                                         <option value="mod">Nur Mods</option>
+                                        <option value="all">Alle kompatiblen</option>
                                     </select>
                                 </div>
 
@@ -2383,6 +2495,7 @@
                                     </button>
                                 </div>
                                 <textarea class="file-editor-textarea" id="file-editor-textarea" placeholder="// Datei links auswählen..." spellcheck="false"></textarea>
+                                <div id="file-editor-hint" class="file-hint-banner" style="display:none;"></div>
                             </div>
                         </div>
                     </div>
@@ -2424,13 +2537,7 @@
                 <div class="form-group">
                     <label for="new-server-version">Minecraft Version</label>
                     <select class="form-control" id="new-server-version">
-                        <option value="1.21.1">1.21.1 (Aktuell)</option>
-                        <option value="1.21">1.21</option>
-                        <option value="1.20.4">1.20.4</option>
-                        <option value="1.20.1">1.20.1</option>
-                        <option value="1.19.4">1.19.4</option>
-                        <option value="1.18.2">1.18.2</option>
-                        <option value="1.16.5">1.16.5</option>
+                        <option value="1.21.1">1.21.1 (Standard)</option>
                     </select>
                 </div>
 
@@ -2516,11 +2623,12 @@
                 logs:        (id, tail = 200) => req('GET', `/api/servers/${id}/logs?tail=${tail}`),
                 command:     (id, command) => req('POST', `/api/servers/${id}/command`, { command }),
                 stats:       () => req('GET', '/api/stats'),
+                minecraftVersions: () => req('GET', '/api/minecraft/versions'),
                 // Plugin / Mod (Modrinth)
-                searchPlugins: (id, query, type = 'auto', limit = 20) =>
+                searchPlugins: (id, query, type = 'auto', limit = 25) =>
                     req('GET', `/api/servers/${id}/plugins/search?query=${encodeURIComponent(query || '')}&type=${type}&limit=${limit}`),
-                installPlugin: (id, projectId, versionId) =>
-                    req('POST', `/api/servers/${id}/plugins/install`, { project_id: projectId, version_id: versionId || null }),
+                installPlugin: (id, projectId, versionId, target) =>
+                    req('POST', `/api/servers/${id}/plugins/install`, { project_id: projectId, version_id: versionId || null, target: target || null }),
                 installedPlugins: (id) => req('GET', `/api/servers/${id}/plugins/installed`),
                 deleteInstalledPlugin: (id, filename) =>
                     req('DELETE', `/api/servers/${id}/plugins/installed/${encodeURIComponent(filename)}`),
@@ -2664,12 +2772,48 @@
                 // Initial Software-Karten anzeigen (Default Vanilla)
                 this.renderSoftwareCards('Vanilla');
 
+                // v1.0.7: Minecraft-Versionsliste laden (Mojang-Manifest oder Fallback)
+                this.loadMinecraftVersions();
+
                 // Erstes Laden + Polling
                 this.refreshServers().then(() => {
                     this.renderServerGrid();
                     this.renderGlobalStats();
                 });
                 this.startResourceSimulation();
+            }
+
+            // v1.0.7: Versions-Dropdowns aus dem Backend befuellen.
+            // Aufgerufen beim Init und nochmal beim Oeffnen des Dashboards
+            // (zum Vorbelegen der aktuellen Server-Version).
+            async loadMinecraftVersions() {
+                try {
+                    const data = await API.minecraftVersions();
+                    const versions = data && Array.isArray(data.versions) ? data.versions : [];
+                    if (!versions.length) return;
+                    this._mcVersions = versions;
+                    this._mcLatest = data.latest_release || versions[0];
+
+                    const buildOptions = () => versions.map(v => {
+                        const isLatest = v === this._mcLatest;
+                        const label = isLatest ? `${v} (Neueste Version)` : v;
+                        return `<option value="${v}">${label}</option>`;
+                    }).join('');
+
+                    const sel1 = document.getElementById('select-mc-version');
+                    const sel2 = document.getElementById('new-server-version');
+                    if (sel1) {
+                        const prev = sel1.value;
+                        sel1.innerHTML = buildOptions();
+                        sel1.value = prev && versions.includes(prev) ? prev : this._mcLatest;
+                    }
+                    if (sel2) {
+                        sel2.innerHTML = buildOptions();
+                        sel2.value = this._mcLatest;
+                    }
+                } catch (err) {
+                    console.warn('Konnte Minecraft-Versionen nicht laden:', err);
+                }
             }
 
             /* --- BACKEND SYNC --- */
@@ -2783,7 +2927,18 @@
                 this.renderSoftwareCards(server.software);
 
                 // Pre-fill versions configuration
-                document.getElementById('select-mc-version').value = server.version;
+                // v1.0.7: Versionsliste sicherstellen, bevor wir den Wert setzen.
+                if (!this._mcVersions || !this._mcVersions.length) {
+                    await this.loadMinecraftVersions();
+                }
+                const sel = document.getElementById('select-mc-version');
+                if (sel && server.version && !Array.from(sel.options).some(o => o.value === server.version)) {
+                    const opt = document.createElement('option');
+                    opt.value = server.version;
+                    opt.text = `${server.version} (aktiv)`;
+                    sel.insertBefore(opt, sel.firstChild);
+                }
+                if (sel) sel.value = server.version;
                 document.getElementById('input-allocated-ram').value = server.ramMax;
                 document.getElementById('label-allocated-ram').innerText = server.ramMax + ' GB';
 
@@ -3374,12 +3529,19 @@
                 const copyBtn = document.getElementById('conn-tunnel-copy');
                 const startBtn = document.getElementById('btn-tunnel-start');
                 const stopBtn = document.getElementById('btn-tunnel-stop');
+                const wizard = document.getElementById('tunnel-wizard');
+                const claimRow = document.getElementById('tunnel-claim-row');
+                const claimLink = document.getElementById('tunnel-claim-link');
+                const logsDetails = document.getElementById('tunnel-logs-details');
+                const logsPre = document.getElementById('tunnel-logs-pre');
+                const messageEl = document.getElementById('tunnel-message');
                 if (!status) return;
 
                 const t = server.tunnel || { status: 'not_started' };
+                const s = (t.status || 'not_started').toLowerCase();
                 const hasDomain = !!t.domain;
 
-                status.innerText = t.status || 'unknown';
+                status.innerText = s.replace('_', ' ');
                 if (hasDomain) {
                     domainEl.innerText = t.domain;
                     copyBtn.style.display = 'inline-flex';
@@ -3392,18 +3554,87 @@
                     };
                 } else {
                     copyBtn.style.display = 'none';
-                    if (t.status === 'running') {
-                        domainEl.innerText = 'Tunnel läuft – Domain wird erkannt …';
-                    } else if (t.status === 'not_started') {
+                    if (s === 'active') {
+                        domainEl.innerText = 'Tunnel aktiv. Domain wird gleich angezeigt …';
+                    } else if (s === 'agent_started') {
+                        domainEl.innerText = 'Agent läuft – Domain wird erkannt …';
+                    } else if (s === 'auth_required') {
+                        domainEl.innerText = 'Token / Auth nötig.';
+                    } else if (s === 'not_started') {
                         domainEl.innerText = 'Noch kein Tunnel aktiv.';
+                    } else if (s === 'error') {
+                        domainEl.innerText = 'Tunnel-Fehler.';
                     } else {
-                        domainEl.innerText = `Tunnel Status: ${t.status}`;
+                        domainEl.innerText = `Tunnel Status: ${s}`;
                     }
                 }
 
-                const isRunning = t.status === 'running' || t.status === 'created' || t.status === 'restarting';
-                startBtn.style.display = isRunning ? 'none' : 'inline-flex';
-                stopBtn.style.display  = isRunning ? 'inline-flex' : 'none';
+                // Wizard-Schritte
+                if (wizard) {
+                    const order = ['image_pull', 'agent_started', 'auth_required', 'active'];
+                    const reachedIndex = {
+                        'not_started': -1,
+                        'image_pull':   0,
+                        'agent_started':1,
+                        'auth_required':2,
+                        'active':       3,
+                        'error':       -2,
+                    }[s] ?? -1;
+                    wizard.style.display = (s === 'not_started' && !t.container) ? 'none' : 'flex';
+                    wizard.querySelectorAll('li').forEach((li) => {
+                        const step = li.dataset.step;
+                        const idx = order.indexOf(step);
+                        li.classList.remove('done', 'active', 'warn', 'error');
+                        if (s === 'error') {
+                            if (idx === 0) li.classList.add('error');
+                        } else if (idx <= reachedIndex - 1) {
+                            li.classList.add('done');
+                        } else if (idx === reachedIndex) {
+                            li.classList.add(step === 'auth_required' ? 'warn' : 'active');
+                        }
+                    });
+                }
+
+                // Claim-Link
+                if (claimRow && claimLink) {
+                    if (t.claim_url) {
+                        claimRow.style.display = 'block';
+                        claimLink.href = t.claim_url;
+                        claimLink.innerText = t.claim_url;
+                    } else {
+                        claimRow.style.display = 'none';
+                    }
+                }
+
+                // Log-Auszug
+                if (logsDetails && logsPre) {
+                    if (t.logs_tail) {
+                        logsDetails.style.display = 'block';
+                        logsPre.textContent = t.logs_tail;
+                    } else {
+                        logsDetails.style.display = 'none';
+                    }
+                }
+
+                // Fehlermeldung / Hinweis
+                if (messageEl) {
+                    if (t.message && (s === 'error' || s === 'auth_required' || s === 'agent_started')) {
+                        messageEl.style.display = 'block';
+                        messageEl.innerText = t.message;
+                    } else {
+                        messageEl.style.display = 'none';
+                    }
+                }
+
+                // Buttons
+                const sidecarLive = !!t.container && (s === 'agent_started' || s === 'auth_required' || s === 'active');
+                startBtn.style.display = sidecarLive ? 'none' : 'inline-flex';
+                stopBtn.style.display  = sidecarLive ? 'inline-flex' : 'none';
+                if (startBtn._loading) {
+                    startBtn.disabled = true;
+                } else {
+                    startBtn.disabled = false;
+                }
             }
 
             async refreshTunnel(serverId) {
@@ -3422,25 +3653,36 @@
 
             async startTunnel() {
                 if (!this.activeServerId) return;
+                const startBtn = document.getElementById('btn-tunnel-start');
+                if (startBtn) { startBtn._loading = true; startBtn.disabled = true; startBtn.innerText = 'Starte ...'; }
                 this.showToast('Starte playit-Tunnel ...', 'warn');
                 try {
                     const secret = (window.prompt(
-                        'Optional: playit.gg Secret-Key einfügen (oder leer lassen, um den Tunnel zu starten und sich dann unter https://playit.gg/claim einzuloggen):',
+                        'Optional: playit.gg Secret-Key einfügen (oder leer lassen und Agent danach unter https://playit.gg/claim verknüpfen):',
                         ''
                     ) || '').trim();
                     const data = await API.tunnelStart(this.activeServerId, secret || null);
                     const server = this.getServer(this.activeServerId);
                     if (server) server.tunnel = data;
                     this._renderTunnelInfo(server);
-                    this.showToast('Tunnel gestartet. Domain wird gleich angezeigt.', 'success');
+
+                    if (data && data.ok === false) {
+                        this.showToast('Tunnel: ' + (data.message || data.status || 'Fehler'), 'error');
+                    } else if (data && data.status === 'auth_required') {
+                        this.showToast('Tunnel braucht Auth – Claim-Link unten öffnen.', 'warn');
+                    } else {
+                        this.showToast('Tunnel gestartet. Domain wird gleich angezeigt.', 'success');
+                    }
                 } catch (err) {
-                    this.showToast('Tunnel-Start fehlgeschlagen: ' + err.message, 'error');
+                    this.showToast('Tunnel-Start fehlgeschlagen: ' + (err && err.message ? err.message : err), 'error');
+                } finally {
+                    if (startBtn) { startBtn._loading = false; startBtn.disabled = false; startBtn.innerText = 'Tunnel starten'; }
                 }
             }
 
             async stopTunnel() {
                 if (!this.activeServerId) return;
-                if (!confirm('Tunnel wirklich stoppen?')) return;
+                if (!confirm('Tunnel wirklich stoppen? (Minecraft-Server bleibt unangetastet)')) return;
                 try {
                     await API.tunnelStop(this.activeServerId);
                     const server = this.getServer(this.activeServerId);
@@ -3558,7 +3800,7 @@
                 }
             }
 
-            /* --- v1.0.4 DATEI-MANAGER --- */
+            /* --- v1.0.4 / v1.0.7 DATEI-MANAGER --- */
             async loadFilesIndex() {
                 const id = this.activeServerId;
                 if (!id) return;
@@ -3575,14 +3817,22 @@
                 }
 
                 list.innerHTML = '';
+                this._fileMeta = {};
                 (data.files || []).forEach(f => {
+                    this._fileMeta[f.name] = f;
                     const btn = document.createElement('button');
                     btn.className = 'file-list-item';
                     btn.dataset.name = f.name;
+                    let badge = '';
+                    if (!f.exists) {
+                        badge = f.optional
+                            ? '<span class="badge-missing optional" title="Optional - existiert nicht">optional</span>'
+                            : '<span class="badge-missing">leer</span>';
+                    }
                     btn.innerHTML = `
                         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
                         <span>${this._escape(f.name)}</span>
-                        ${f.exists ? '' : '<span class="badge-missing">leer</span>'}
+                        ${badge}
                     `;
                     btn.onclick = () => this.openFile(f.name);
                     list.appendChild(btn);
@@ -3599,22 +3849,45 @@
                 const nameEl = document.getElementById('file-editor-name');
                 const pathEl = document.getElementById('file-editor-path');
                 const saveBtn = document.getElementById('btn-file-save');
+                const hint = document.getElementById('file-editor-hint');
 
                 ta.value = '// Lade ...';
                 nameEl.innerText = name;
                 pathEl.innerText = 'Lade ...';
                 saveBtn.disabled = true;
+                if (hint) hint.style.display = 'none';
                 this._activeFile = name;
+
+                const meta = (this._fileMeta || {})[name] || {};
+                const isOptional = !!meta.optional;
 
                 try {
                     const data = await API.readFile(id, name);
                     ta.value = data.content || '';
-                    pathEl.innerText = data.path;
+                    pathEl.innerText = data.path || '';
                     saveBtn.disabled = false;
+
+                    // v1.0.7: optionale Datei existiert noch nicht -> Banner statt Toast.
+                    if (data && data.exists === false && data.optional && hint) {
+                        hint.style.display = 'block';
+                        hint.innerText = data.hint || 'Datei existiert noch nicht. Beim Speichern wird sie erstellt.';
+                    }
                 } catch (err) {
-                    ta.value = '';
-                    pathEl.innerText = 'Fehler';
-                    this.showToast('Datei konnte nicht geladen werden: ' + err.message, 'error');
+                    // Wenn der Server doch hart 404 wirft (z.B. Pflicht-Datei),
+                    // bei Optionalen *kein* roter Toast - nur leerer Editor + Hinweis.
+                    if (isOptional) {
+                        ta.value = '';
+                        pathEl.innerText = meta.path || '';
+                        saveBtn.disabled = false;
+                        if (hint) {
+                            hint.style.display = 'block';
+                            hint.innerText = 'Datei existiert noch nicht. Beim Speichern wird sie erstellt.';
+                        }
+                    } else {
+                        ta.value = '';
+                        pathEl.innerText = 'Fehler';
+                        this.showToast('Datei konnte nicht geladen werden: ' + err.message, 'error');
+                    }
                 }
             }
 
@@ -3622,10 +3895,13 @@
                 if (!this.activeServerId || !this._activeFile) return;
                 const ta = document.getElementById('file-editor-textarea');
                 const saveBtn = document.getElementById('btn-file-save');
+                const hint = document.getElementById('file-editor-hint');
                 saveBtn.disabled = true;
                 try {
                     await API.writeFile(this.activeServerId, this._activeFile, ta.value);
                     this.showToast(`"${this._activeFile}" gespeichert. Neustart empfohlen.`, 'success');
+                    if (hint) hint.style.display = 'none';
+                    this.loadFilesIndex();   // 'optional'/'leer'-Badge ggf. entfernen
                 } catch (err) {
                     this.showToast('Speichern fehlgeschlagen: ' + err.message, 'error');
                 } finally {
@@ -3982,6 +4258,14 @@
                 const server = this.getServer(this.activeServerId);
                 if (!server) return;
 
+                // Vanilla unterstuetzt von Haus aus weder Plugins noch Mods.
+                if ((server.software || '').toLowerCase() === 'vanilla') {
+                    container.innerHTML = `<div style="color:var(--text-muted); text-align:center; padding: 2rem;">
+                        Vanilla unterstuetzt keine Plugins oder Mods. Wechsle in den Software-Tab z.B. zu Paper, Forge oder Fabric.
+                    </div>`;
+                    return;
+                }
+
                 container.innerHTML = '<div style="color:var(--text-muted); text-align:center; padding: 1.5rem;">Suche auf modrinth.com ...</div>';
 
                 let data;
@@ -3998,7 +4282,7 @@
 
                 if (results.length === 0) {
                     container.innerHTML = `<div style="color:var(--text-muted); text-align:center; padding: 2rem;">
-                        Keine Treffer fuer "${this._escape(searchQuery || '')}" (${data.kind} fuer ${this._escape(data.version || 'beliebig')}).
+                        Keine Treffer fuer "${this._escape(searchQuery || '')}" (${this._escape(data.kind || '')} fuer ${this._escape(data.version || 'beliebig')}).
                     </div>`;
                     return;
                 }
@@ -4006,6 +4290,22 @@
                 results.forEach(plugin => {
                     const candidate = (plugin.slug || '').toLowerCase();
                     const isInstalledHint = [...installed].some(name => name.includes(candidate));
+                    const cls = (plugin.classification || 'unknown').toLowerCase();
+                    const clsLabel = cls.toUpperCase();
+                    const loaderPills = (plugin.loaders || [])
+                        .map(l => `<span class="plugin-loader-pill">${this._escape(l)}</span>`)
+                        .join('');
+                    const targetLabel = plugin.target_dir
+                        ? `Ziel: <code>${this._escape(plugin.target_dir)}</code>`
+                        : (cls === 'hybrid' ? 'Ziel: bei Klick wählbar' : 'Ziel: unbekannt');
+                    const clientWarn = plugin.server_side === 'unsupported'
+                        ? '<div class="plugin-clientside-warn">⚠ Reines Client-Mod – auf dem Server nicht aktiv.</div>'
+                        : '';
+
+                    const installable = cls !== 'unknown';
+                    const buttonLabel = !installable
+                        ? 'Nicht installierbar'
+                        : (isInstalledHint ? 'Erneut laden' : 'Installieren');
 
                     const item = document.createElement('div');
                     item.className = 'plugin-item';
@@ -4015,11 +4315,14 @@
                                 ? `<img src="${this._escape(plugin.icon_url)}" alt="" loading="lazy" style="width:42px; height:42px; border-radius:8px; object-fit:cover; flex:0 0 42px; background:var(--bg-tertiary);">`
                                 : ''}
                             <div style="flex:1; min-width:0;">
-                                <h4 style="display:flex; align-items:center; gap:6px;">
+                                <h4 style="display:flex; align-items:center; gap:6px; flex-wrap:wrap;">
                                     ${this._escape(plugin.title || plugin.slug)}
-                                    <span class="tag-category">${this._escape((plugin.project_type || '').toUpperCase())}</span>
+                                    <span class="plugin-classification ${this._escape(cls)}">${this._escape(clsLabel)}</span>
                                 </h4>
                                 <p style="margin-top:2px;">${this._escape(plugin.description || '')}</p>
+                                <div style="margin-top:6px;">${loaderPills}</div>
+                                <div class="plugin-target-line">${targetLabel}</div>
+                                ${clientWarn}
                                 <div class="plugin-meta-row" style="margin-top:6px;">
                                     <span style="font-size:0.75rem; color: var(--text-muted);">
                                         ${plugin.downloads ? plugin.downloads.toLocaleString('de-DE') + ' Downloads' : ''}
@@ -4033,14 +4336,18 @@
                         </div>
                         <div>
                             <button class="btn btn-success" style="padding: 6px 12px; font-size: 0.8rem;"
+                                    ${installable ? '' : 'disabled'}
                                     data-pid="${this._escape(plugin.project_id)}"
-                                    data-name="${this._escape(plugin.title || plugin.slug)}">
-                                ${isInstalledHint ? 'Erneut laden' : 'Installieren'}
+                                    data-name="${this._escape(plugin.title || plugin.slug)}"
+                                    data-class="${this._escape(cls)}">
+                                ${this._escape(buttonLabel)}
                             </button>
                         </div>
                     `;
                     const btn = item.querySelector('button');
-                    btn.addEventListener('click', () => this.installExtension(btn.dataset.pid, btn.dataset.name, btn));
+                    if (installable) {
+                        btn.addEventListener('click', () => this.installExtension(btn.dataset.pid, btn.dataset.name, btn, btn.dataset.class));
+                    }
                     container.appendChild(item);
                 });
             }
@@ -4054,9 +4361,23 @@
                 }, 350);
             }
 
-            async installExtension(projectId, displayName, btn) {
+            async installExtension(projectId, displayName, btn, classification) {
                 const server = this.getServer(this.activeServerId);
                 if (!server || !projectId) return;
+
+                let target = null;  // 'plugins' | 'mods' (Override fuer Hybrid)
+                if ((classification || '').toLowerCase() === 'hybrid') {
+                    const ans = window.prompt(
+                        'Hybrid-Erweiterung. Als "plugins" oder "mods" installieren?',
+                        'plugins'
+                    );
+                    if (ans === null) return;
+                    target = (ans || '').trim().toLowerCase();
+                    if (!['plugins', 'mods'].includes(target)) {
+                        this.showToast('Ungültige Auswahl. Bitte plugins oder mods.', 'warn');
+                        return;
+                    }
+                }
 
                 if (btn) {
                     btn.disabled = true;
@@ -4065,9 +4386,9 @@
                 this.showToast(`Installiere ${displayName || projectId} ...`, 'warn');
 
                 try {
-                    const res = await API.installPlugin(server.id, projectId);
-                    this.addLog(server, 'INFO', `[CraftControl] Plugin installiert: ${res.filename} (${res.version_number || 'latest'})`);
-                    this.showToast(`${res.filename} installiert. Neustart empfohlen.`, 'success');
+                    const res = await API.installPlugin(server.id, projectId, null, target);
+                    this.addLog(server, 'INFO', `[CraftControl] Installiert: ${res.filename} (${res.version_number || 'latest'}) -> ${res.directory}`);
+                    this.showToast(`${res.filename} installiert (${res.directory}). Neustart empfohlen.`, 'success');
                     await this.loadInstalledExtensions(server);
                 } catch (err) {
                     console.error(err);

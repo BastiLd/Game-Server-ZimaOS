@@ -64,7 +64,7 @@ TUNNEL_KIND_LABEL = "craftcontrol.tunnel_kind"       # 'playit'
 
 CPU_OVERLOAD_THRESHOLD = float(os.getenv("CRAFTCONTROL_CPU_OVERLOAD", "90"))
 IDLE_OPTIMIZER_MINUTES = int(os.getenv("CRAFTCONTROL_IDLE_MINUTES", "30"))
-PLAYIT_IMAGE = os.getenv("CRAFTCONTROL_PLAYIT_IMAGE", "playitgg/playit:latest")
+PLAYIT_IMAGE = os.getenv("CRAFTCONTROL_PLAYIT_IMAGE", "playitcloud/playit:latest")
 
 MC_IMAGE = os.getenv("CRAFTCONTROL_IMAGE", "itzg/minecraft-server:latest")
 DATA_ROOT = os.getenv("CRAFTCONTROL_DATA_ROOT", "/data/craftcontrol")
@@ -83,20 +83,26 @@ SOFTWARE_TYPE_MAP: Dict[str, str] = {
     "Mohist": "MOHIST",
 }
 
-# Welche Software laedt aus welchem Verzeichnis und welchen Modrinth-Loader
-# verwendet sie? "kind" steuert die Filter im Modrinth-Such-Endpoint:
-#   - "plugin" -> nur Bukkit-Plugins (Spigot/Paper)
-#   - "mod"    -> nur Mods (Forge/Fabric)
-#   - "any"    -> beides (Vanilla/Mohist/Arclight) - Hybrid-Software
+# Welche Loader-Kategorien laden wir bei Modrinth fuer Plugins bzw. Mods?
+# Wichtig: Modrinth nutzt project_type:mod fuer "Server-Modifikationen"
+# (inkl. Bukkit-Plugins). Den Plugin-Kontext liefert die Loader-Kategorie.
+PLUGIN_LOADERS: List[str] = ["paper", "spigot", "bukkit", "purpur", "sponge", "folia"]
+MOD_LOADERS:    List[str] = ["fabric", "forge", "neoforge", "quilt"]
+
+# Pro Server-Software: in welches Verzeichnis installiert wird, welche
+# Loader-Kategorien zu nutzen sind und ob Plugins/Mods/beides erlaubt sind.
+#   - "kind": "plugin" | "mod" | "any"
+#   - "any" = Hybrid (Mohist/Arclight/Magma/Vanilla-default fuer Suche)
 SOFTWARE_PROFILE: Dict[str, Dict[str, Any]] = {
-    "Vanilla": {"dir": "plugins", "loaders": [],                                            "kind": "any"},
-    "Spigot":  {"dir": "plugins", "loaders": ["spigot", "bukkit", "paper"],                 "kind": "plugin"},
-    "Paper":   {"dir": "plugins", "loaders": ["paper", "spigot", "bukkit"],                 "kind": "plugin"},
-    # Mohist/Arclight koennen Plugins UND Forge-Mods laden -> Hybrid (any)
-    "Mohist":  {"dir": "plugins", "loaders": ["paper", "spigot", "bukkit", "forge"],        "kind": "any"},
-    "Arclight":{"dir": "plugins", "loaders": ["paper", "spigot", "bukkit", "forge"],        "kind": "any"},
-    "Forge":   {"dir": "mods",    "loaders": ["forge", "neoforge"],                         "kind": "mod"},
-    "Fabric":  {"dir": "mods",    "loaders": ["fabric", "quilt"],                           "kind": "mod"},
+    "Vanilla":  {"dir": "plugins", "loaders": [],                          "kind": "any"},
+    "Spigot":   {"dir": "plugins", "loaders": ["spigot", "bukkit"],        "kind": "plugin"},
+    "Paper":    {"dir": "plugins", "loaders": ["paper", "spigot", "bukkit"], "kind": "plugin"},
+    "Purpur":   {"dir": "plugins", "loaders": ["purpur", "paper", "spigot", "bukkit"], "kind": "plugin"},
+    "Mohist":   {"dir": "plugins", "loaders": ["paper", "spigot", "bukkit", "forge"], "kind": "any"},
+    "Arclight": {"dir": "plugins", "loaders": ["paper", "spigot", "bukkit", "forge"], "kind": "any"},
+    "Magma":    {"dir": "plugins", "loaders": ["paper", "spigot", "bukkit", "forge"], "kind": "any"},
+    "Forge":    {"dir": "mods",    "loaders": ["forge", "neoforge"],       "kind": "mod"},
+    "Fabric":   {"dir": "mods",    "loaders": ["fabric", "quilt"],         "kind": "mod"},
 }
 
 MODRINTH_BASE = "https://api.modrinth.com/v2"
@@ -135,6 +141,7 @@ class CommandRequest(BaseModel):
 class PluginInstallRequest(BaseModel):
     project_id: str = Field(..., min_length=1)
     version_id: Optional[str] = None  # falls eine bestimmte Version gewuenscht ist
+    target: Optional[str] = None      # 'plugins' | 'mods' (Override fuer Hybride)
 
 
 class PlayerActionRequest(BaseModel):
@@ -338,7 +345,7 @@ def _get_container(server_id: str) -> Container:
 # ---------------------------------------------------------------------------
 # FastAPI-App
 # ---------------------------------------------------------------------------
-app = FastAPI(title="CraftControl Backend", version="1.0.6")
+app = FastAPI(title="CraftControl Backend", version="1.0.7")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -544,6 +551,82 @@ def health() -> Dict[str, Any]:
 
 
 # ---------------------------------------------------------------------------
+# v1.0.7: Minecraft-Versionen (aus Mojang piston-meta, mit Cache + Fallback)
+# ---------------------------------------------------------------------------
+MOJANG_MANIFEST = "https://piston-meta.mojang.com/mc/game/version_manifest_v2.json"
+_MC_VERSIONS_CACHE: Dict[str, Any] = {"ts": 0, "data": None}
+_MC_VERSIONS_TTL = 12 * 3600  # 12 h
+
+# Fallback-Liste, falls Mojang gerade nicht erreichbar ist.
+_MC_VERSIONS_FALLBACK: List[str] = [
+    "1.21.10", "1.21.9", "1.21.8", "1.21.7", "1.21.6", "1.21.5", "1.21.4",
+    "1.21.3", "1.21.2", "1.21.1", "1.21",
+    "1.20.6", "1.20.5", "1.20.4", "1.20.3", "1.20.2", "1.20.1", "1.20",
+    "1.19.4", "1.19.3", "1.19.2", "1.19.1", "1.19",
+    "1.18.2", "1.18.1", "1.18",
+    "1.17.1", "1.17",
+    "1.16.5", "1.16.4", "1.16.3", "1.16.2", "1.16.1", "1.16",
+    "1.15.2", "1.15.1", "1.15",
+    "1.14.4", "1.14.3", "1.14.2", "1.14.1", "1.14",
+    "1.13.2", "1.13.1", "1.13",
+    "1.12.2", "1.12.1", "1.12",
+    "1.11.2", "1.11.1", "1.11",
+    "1.10.2", "1.10",
+    "1.9.4", "1.9.2", "1.9",
+    "1.8.9", "1.8.8", "1.8.7", "1.8.6", "1.8.5", "1.8.4", "1.8.3", "1.8",
+    "1.7.10", "1.7.9", "1.7.8", "1.7.5", "1.7.4", "1.7.2",
+    "1.6.4", "1.6.2", "1.6.1",
+    "1.5.2", "1.5.1", "1.5",
+    "1.4.7", "1.4.6", "1.4.5", "1.4.4", "1.4.2",
+    "1.3.2", "1.3.1",
+    "1.2.5",
+    "1.1",
+    "1.0",
+]
+
+
+@app.get("/api/minecraft/versions")
+async def minecraft_versions() -> Dict[str, Any]:
+    """
+    Liefert Release-Versionen von Minecraft. Versucht zuerst das Mojang-
+    piston-meta-Manifest (12 h gecached) und faellt sonst auf eine
+    statische Liste zurueck.
+    """
+    now = time.time()
+    cache = _MC_VERSIONS_CACHE
+    if cache["data"] and (now - cache["ts"]) < _MC_VERSIONS_TTL:
+        return cache["data"]
+
+    versions: List[str] = []
+    latest: Optional[str] = None
+    source = "mojang"
+
+    try:
+        async with httpx.AsyncClient(timeout=8) as client:
+            r = await client.get(MOJANG_MANIFEST, headers={"User-Agent": MODRINTH_UA})
+            r.raise_for_status()
+            data = r.json()
+            latest = (data.get("latest") or {}).get("release")
+            for v in data.get("versions") or []:
+                if v.get("type") == "release":
+                    versions.append(v.get("id"))
+    except Exception as exc:  # noqa: BLE001
+        log.warning("Mojang-Manifest nicht erreichbar (%s) - Fallback aktiv.", exc)
+        source = "fallback"
+        versions = list(_MC_VERSIONS_FALLBACK)
+        latest = versions[0]
+
+    payload = {
+        "source": source,
+        "latest_release": latest,
+        "versions": versions,
+    }
+    _MC_VERSIONS_CACHE["ts"] = now
+    _MC_VERSIONS_CACHE["data"] = payload
+    return payload
+
+
+# ---------------------------------------------------------------------------
 # Modrinth-Integration
 # ---------------------------------------------------------------------------
 SAFE_FILE_RE = re.compile(r"^[A-Za-z0-9._\-+ ]+\.jar$")
@@ -691,68 +774,164 @@ def _safe_plugin_filename(name: str) -> str:
 async def search_plugins(
     server_id: str,
     query: str = "",
-    type: str = "auto",     # auto | mod | plugin
-    limit: int = 20,
+    type: str = "auto",     # auto | plugin | mod | all
+    limit: int = 25,
 ) -> Dict[str, Any]:
+    """
+    Modrinth-Suche fuer den aktuellen Server.
+
+    Modrinth nutzt project_type:mod fuer "Server-Modifikationen" inkl.
+    Bukkit-Plugins. Plugins lassen sich daher NICHT ueber den project type
+    "plugin" finden, sondern ueber Loader-Kategorien (paper/spigot/bukkit/...).
+
+    Wir bauen daraus echte Filter:
+      Plugins: project_type:mod + categories:paper|spigot|bukkit|...
+      Mods:    project_type:mod + categories:fabric|forge|neoforge|quilt
+    Plus optional Versions- und server_side-Facet.
+    """
     container = _get_container(server_id)
     sw = container.labels.get(SOFTWARE_LABEL) or "Vanilla"
     version = container.labels.get(VERSION_LABEL) or ""
 
     profile = _profile_for(sw)
+    type = (type or "auto").lower()
+
+    if type not in ("auto", "plugin", "mod", "all"):
+        raise HTTPException(400, "type muss 'auto', 'plugin', 'mod' oder 'all' sein")
+
     if type == "auto":
-        kind = profile["kind"]
-    elif type in ("mod", "plugin"):
+        kind = profile["kind"]   # 'plugin' | 'mod' | 'any'
+    elif type == "all":
+        kind = "any"
+    else:
         kind = type
-    else:
-        raise HTTPException(400, "type muss 'auto', 'mod' oder 'plugin' sein")
 
-    # Modrinth-Facets: project_type + Loader + game_version
-    facets: List[List[str]] = []
+    plugin_loaders_for_software = [l for l in PLUGIN_LOADERS if not profile["loaders"] or l in profile["loaders"] or profile["kind"] in ("any", "plugin")]
+    if not plugin_loaders_for_software:
+        plugin_loaders_for_software = list(PLUGIN_LOADERS)
+    mod_loaders_for_software = [l for l in MOD_LOADERS if not profile["loaders"] or l in profile["loaders"] or profile["kind"] in ("any", "mod")]
+    if not mod_loaders_for_software:
+        mod_loaders_for_software = list(MOD_LOADERS)
+
+    limit = max(1, min(int(limit) if limit else 25, 50))
+
+    async def _search(loaders: List[str]) -> List[Dict[str, Any]]:
+        if not loaders:
+            return []
+        facets: List[List[str]] = [
+            ["project_type:mod"],
+            [f"categories:{l}" for l in loaders],
+        ]
+        if version:
+            facets.append([f"versions:{version}"])
+        # Nur server-relevante Projekte zeigen: required oder optional.
+        # 'unsupported' (= client-only) wird damit ausgeblendet.
+        facets.append(["server_side:required", "server_side:optional"])
+        params = {
+            "query": query or "",
+            "limit": limit,
+            "facets": _to_facets_json(facets),
+            "index": "relevance",
+        }
+        log.info("Modrinth search facets=%s query=%r", params["facets"], query)
+        async with httpx.AsyncClient() as client:
+            data = await _modrinth_get(client, "/search", params=params)
+        return data.get("hits", []) or []
+
+    plugin_hits: List[Dict[str, Any]] = []
+    mod_hits: List[Dict[str, Any]] = []
+
     if kind == "plugin":
-        facets.append(["project_type:plugin"])
+        plugin_hits = await _search(plugin_loaders_for_software)
     elif kind == "mod":
-        facets.append(["project_type:mod"])
-    else:
-        facets.append(["project_type:mod", "project_type:plugin"])
+        mod_hits = await _search(mod_loaders_for_software)
+    else:  # any/all
+        plugin_hits = await _search(plugin_loaders_for_software)
+        mod_hits = await _search(mod_loaders_for_software)
 
-    if profile["loaders"]:
-        facets.append([f"categories:{l}" for l in profile["loaders"]])
+    # Deduplizieren nach project_id, plugin-Treffer haben Vorrang fuer Plugin-Server.
+    seen: Dict[str, Dict[str, Any]] = {}
+    primary, secondary = (plugin_hits, mod_hits) if kind != "mod" else (mod_hits, plugin_hits)
+    for hit in [*primary, *secondary]:
+        pid = hit.get("project_id") or hit.get("slug")
+        if not pid or pid in seen:
+            continue
+        seen[pid] = hit
 
-    if version:
-        facets.append([f"versions:{version}"])
+    results: List[Dict[str, Any]] = []
+    for hit in seen.values():
+        cats = hit.get("categories") or []
+        classification = _classify_project(cats)
+        if classification == "unknown" and kind != "any":
+            # Bei strikter Plugin/Mod-Suche unbekannte Kategorien rausfiltern
+            continue
 
-    params = {
-        "query": query,
-        "limit": max(1, min(limit, 50)),
-        "facets": _to_facets_json(facets),
-        "index": "relevance",
-    }
-
-    async with httpx.AsyncClient() as client:
-        data = await _modrinth_get(client, "/search", params=params)
-
-    hits = []
-    for hit in data.get("hits", []):
-        hits.append({
+        results.append({
             "project_id": hit.get("project_id") or hit.get("slug"),
             "slug": hit.get("slug"),
             "title": hit.get("title"),
             "description": hit.get("description"),
             "downloads": hit.get("downloads"),
             "icon_url": hit.get("icon_url"),
-            "categories": hit.get("categories", []),
+            "categories": cats,
             "project_type": hit.get("project_type"),
+            "classification": classification,            # plugin | mod | hybrid | unknown
+            "loaders": _loaders_in(cats),                # nur die Loader (paper/forge/...)
+            "server_side": hit.get("server_side"),
+            "client_side": hit.get("client_side"),
+            "target_dir": _target_dir_for(classification, profile),
             "latest_version": hit.get("latest_version"),
             "url": f"https://modrinth.com/{hit.get('project_type', 'mod')}/{hit.get('slug')}",
         })
+
+    # Sortierung: Pro angefragtem kind sinnvoll vorne (Plugin-Server -> Plugins zuerst)
+    if kind == "plugin":
+        results.sort(key=lambda r: (r["classification"] != "plugin", -(r.get("downloads") or 0)))
+    elif kind == "mod":
+        results.sort(key=lambda r: (r["classification"] != "mod", -(r.get("downloads") or 0)))
+    else:
+        results.sort(key=lambda r: -(r.get("downloads") or 0))
+
     return {
         "query": query,
         "kind": kind,
-        "loaders": profile["loaders"],
+        "software": sw,
         "version": version,
-        "total": data.get("total_hits", len(hits)),
-        "results": hits,
+        "loaders_plugin": plugin_loaders_for_software,
+        "loaders_mod": mod_loaders_for_software,
+        "total": len(results),
+        "results": results[:limit],
     }
+
+
+def _classify_project(categories: List[str]) -> str:
+    cats = {c.lower() for c in (categories or [])}
+    is_plugin = any(l in cats for l in PLUGIN_LOADERS)
+    is_mod    = any(l in cats for l in MOD_LOADERS)
+    if is_plugin and is_mod:
+        return "hybrid"
+    if is_plugin:
+        return "plugin"
+    if is_mod:
+        return "mod"
+    return "unknown"
+
+
+def _loaders_in(categories: List[str]) -> List[str]:
+    cats = {c.lower() for c in (categories or [])}
+    known = set(PLUGIN_LOADERS) | set(MOD_LOADERS)
+    return sorted([c for c in cats if c in known])
+
+
+def _target_dir_for(classification: str, profile: Dict[str, Any]) -> Optional[str]:
+    if classification == "plugin":
+        return "/data/plugins"
+    if classification == "mod":
+        return "/data/mods"
+    if classification == "hybrid":
+        # Frontend muss in dem Fall fragen. Wir geben Fallback aus dem Profil.
+        return f"/data/{profile['dir']}"
+    return None
 
 
 def _to_facets_json(groups: List[List[str]]) -> str:
@@ -798,9 +977,23 @@ async def install_plugin(server_id: str, payload: PluginInstallRequest) -> Dict[
         except HTTPException:
             project_meta = {}
 
-        project_type = (project_meta.get("project_type") or version.get("project_type") or "").lower()
-        if profile["kind"] == "any" and project_type in ("plugin", "mod"):
-            plugin_dir = "/data/plugins" if project_type == "plugin" else "/data/mods"
+        # Klassifizierung anhand der Modrinth-Kategorien (paper/forge/...)
+        cats = (project_meta.get("categories") or []) + (version.get("loaders") or [])
+        classification = _classify_project(cats)
+
+        # Zielordner bestimmen:
+        #   1) explizites target im Payload (UI-Wahl bei Hybrid)
+        #   2) Klassifizierung -> plugin/mod
+        #   3) Profil-Default
+        if payload.target in ("plugins", "mods"):
+            plugin_dir = f"/data/{payload.target}"
+        elif classification == "plugin":
+            plugin_dir = "/data/plugins"
+        elif classification == "mod":
+            plugin_dir = "/data/mods"
+        elif classification == "hybrid":
+            # ohne Vorgabe: nehmen wir das Profil-Default
+            plugin_dir = default_plugin_dir
         else:
             plugin_dir = default_plugin_dir
 
@@ -962,30 +1155,41 @@ def player_ban(server_id: str, payload: PlayerActionRequest) -> Dict[str, Any]:
 # v1.0.4: Datei-API (Web-FTP fuer wichtige Server-Dateien)
 # ---------------------------------------------------------------------------
 EDITABLE_FILES: Dict[str, Dict[str, Any]] = {
-    "server.properties": {"path": "/data/server.properties", "max_kb": 64},
-    "whitelist.json":    {"path": "/data/whitelist.json",    "max_kb": 64},
-    "ops.json":          {"path": "/data/ops.json",          "max_kb": 64},
-    "banned-players.json": {"path": "/data/banned-players.json", "max_kb": 64},
-    "banned-ips.json":   {"path": "/data/banned-ips.json",   "max_kb": 64},
-    "bukkit.yml":        {"path": "/data/bukkit.yml",        "max_kb": 64},
-    "spigot.yml":        {"path": "/data/spigot.yml",        "max_kb": 64},
-    "paper-global.yml":  {"path": "/data/config/paper-global.yml", "max_kb": 128},
+    "server.properties":   {"path": "/data/server.properties",         "max_kb": 64,  "optional": False},
+    "whitelist.json":      {"path": "/data/whitelist.json",            "max_kb": 64,  "optional": False},
+    "ops.json":            {"path": "/data/ops.json",                  "max_kb": 64,  "optional": False},
+    "banned-players.json": {"path": "/data/banned-players.json",       "max_kb": 64,  "optional": False},
+    "banned-ips.json":     {"path": "/data/banned-ips.json",           "max_kb": 64,  "optional": False},
+    "bukkit.yml":          {"path": "/data/bukkit.yml",                "max_kb": 64,  "optional": True},
+    "spigot.yml":          {"path": "/data/spigot.yml",                "max_kb": 64,  "optional": True},
+    "paper-global.yml":    {"path": "/data/config/paper-global.yml",   "max_kb": 128, "optional": True},
+    "paper-world-defaults.yml": {"path": "/data/config/paper-world-defaults.yml", "max_kb": 128, "optional": True},
 }
+
+
+class _FileMissing(Exception):
+    pass
 
 
 def _read_file_from_container(container: Container, path: str) -> str:
     try:
         bits, _stat = container.get_archive(path)
+    except NotFound:
+        raise _FileMissing(path)
     except APIError as exc:
-        raise HTTPException(404, f"Datei nicht gefunden: {exc.explanation or exc}")
+        # Docker liefert fuer 'not found' i.d.R. NotFound, aber manche
+        # Versionen verpacken es in einen generischen APIError.
+        if "could not find the file" in (exc.explanation or "").lower() or "no such file" in str(exc).lower():
+            raise _FileMissing(path)
+        raise HTTPException(500, f"Datei nicht lesbar: {exc.explanation or exc}")
     buf = io.BytesIO(b"".join(bits))
     with tarfile.open(fileobj=buf, mode="r") as tar:
         members = [m for m in tar.getmembers() if m.isfile()]
         if not members:
-            raise HTTPException(404, "Leeres Archiv")
+            raise _FileMissing(path)
         f = tar.extractfile(members[0])
         if not f:
-            raise HTTPException(404, "Datei nicht lesbar")
+            raise HTTPException(500, "Datei nicht lesbar")
         return f.read().decode("utf-8", errors="replace")
 
 
@@ -1003,7 +1207,12 @@ def list_editable_files(server_id: str) -> Dict[str, Any]:
     result = []
     for name, meta in EDITABLE_FILES.items():
         code, _ = _container_exec(container, ["test", "-f", meta["path"]])
-        result.append({"name": name, "path": meta["path"], "exists": code == 0})
+        result.append({
+            "name": name,
+            "path": meta["path"],
+            "exists": code == 0,
+            "optional": bool(meta.get("optional", False)),
+        })
     return {"files": result}
 
 
@@ -1013,8 +1222,28 @@ def read_editable_file(server_id: str, filename: str) -> Dict[str, Any]:
         raise HTTPException(403, "Datei nicht zur Bearbeitung freigegeben")
     container = _get_container(server_id)
     meta = EDITABLE_FILES[filename]
-    content = _read_file_from_container(container, meta["path"])
-    return {"name": filename, "path": meta["path"], "content": content}
+    is_optional = bool(meta.get("optional", False))
+    try:
+        content = _read_file_from_container(container, meta["path"])
+        return {
+            "name": filename,
+            "path": meta["path"],
+            "content": content,
+            "exists": True,
+            "optional": is_optional,
+        }
+    except _FileMissing:
+        # Pflicht-Dateien: weiterhin 404 - Optional-Dateien: leer ausliefern.
+        if not is_optional:
+            raise HTTPException(404, f"Datei nicht gefunden: {meta['path']}")
+        return {
+            "name": filename,
+            "path": meta["path"],
+            "content": "",
+            "exists": False,
+            "optional": True,
+            "hint": "Datei existiert noch nicht. Beim Speichern wird sie erstellt.",
+        }
 
 
 @app.put("/api/servers/{server_id}/files/{filename}")
@@ -1107,8 +1336,29 @@ def _start_idle_watchdog() -> None:
 
 
 # ---------------------------------------------------------------------------
-# v1.0.4: playit.gg Tunnel (Sidecar-Container)
 # ---------------------------------------------------------------------------
+# v1.0.4/v1.0.7: playit.gg Tunnel (Sidecar-Container)
+# Image: playitcloud/playit:latest  (offizielles Docker-Image laut Docker Hub)
+# Pro Minecraft-Server ein Sidecar mit eigenem Config-Volume, damit der Agent
+# seine Auth-Daten ueber Neustarts behaelt.
+# ---------------------------------------------------------------------------
+TUNNEL_NETWORK_MODE = os.getenv("CRAFTCONTROL_PLAYIT_NETWORK", "host")  # 'host' oder 'container:<name>'
+
+# Erkennungsmuster fuer playit-Logs.
+_PLAYIT_DOMAIN_RE = re.compile(r"([a-zA-Z0-9-]+\.(?:joinmc\.link|playit\.gg|gl\.at\.ply\.gg|at\.playit\.gg))(?::\d+)?")
+_PLAYIT_CLAIM_RE = re.compile(r"https?://playit\.gg/(?:claim|mc/connect|connect|setup)/[A-Za-z0-9_-]+", re.IGNORECASE)
+_PLAYIT_AUTH_HINT_RE = re.compile(r"(claim[- ]url|please claim|setup the agent|please visit|account|register|tunnel agent)", re.IGNORECASE)
+_PLAYIT_ACTIVE_RE = re.compile(r"(tunnel established|connected to playit|agent online|listening on)", re.IGNORECASE)
+
+
+def _tunnel_name(server_id: str) -> str:
+    return f"craftcontrol-playit-{server_id}"
+
+
+def _tunnel_volume(server_id: str) -> str:
+    return f"craftcontrol-playit-{server_id}"
+
+
 def _tunnel_container_for(server_id: str) -> Optional[Container]:
     """Findet den Sidecar-Tunnel fuer den Server (per Label)."""
     for c in docker_client().containers.list(all=True, filters={"label": f"{TUNNEL_FOR_LABEL}={server_id}"}):
@@ -1116,26 +1366,72 @@ def _tunnel_container_for(server_id: str) -> Optional[Container]:
     return None
 
 
-def _tunnel_status_dto(parent: Container, tunnel: Optional[Container]) -> Dict[str, Any]:
-    if not tunnel:
-        return {"status": "not_started", "message": "Kein Tunnel laeuft fuer diesen Server."}
-    tunnel.reload()
-    state = (tunnel.status or "unknown").lower()
-    # Versuche aus den Logs eine Domain zu extrahieren (playit gibt die im stdout aus)
-    domain = None
+def _read_playit_logs(tunnel: Container, tail: int = 400) -> str:
     try:
-        logs = tunnel.logs(tail=200).decode("utf-8", errors="replace")
-        m = re.search(r"([a-zA-Z0-9-]+\.(?:joinmc\.link|playit\.gg|gl\.at\.ply\.gg|at\.playit\.gg))(?::\d+)?", logs)
-        if m:
-            domain = m.group(0)
-    except Exception:  # noqa: BLE001
-        domain = None
-    return {
-        "status": state,
-        "tunnel_container": tunnel.name,
-        "domain": domain,
-        "message": "Domain wird angezeigt, sobald playit sie zugewiesen hat. Logge dich ggf. unter https://playit.gg ein, um den Agent zu authentifizieren.",
+        return tunnel.logs(tail=tail).decode("utf-8", errors="replace")
+    except APIError:
+        return ""
+
+
+def _tunnel_status_dto(parent: Container, tunnel: Optional[Container], extra: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+    """Antwort-Format fuer GET/POST tunnel-Endpunkte (Wizard-fähig)."""
+    base: Dict[str, Any] = {
+        "ok": True,
+        "image": PLAYIT_IMAGE,
+        "container": None,
+        "logs_tail": "",
+        "domain": None,
+        "claim_url": None,
+        "status": "not_started",
+        "message": "Kein Tunnel laeuft fuer diesen Server.",
     }
+    if extra:
+        base.update(extra)
+
+    if not tunnel:
+        return base
+
+    try:
+        tunnel.reload()
+    except APIError:
+        pass
+
+    state = (tunnel.status or "unknown").lower()
+    logs = _read_playit_logs(tunnel)
+    base.update({
+        "container": tunnel.name,
+        "logs_tail": logs[-4000:],  # nur letzte ~4 KB ausliefern
+    })
+
+    domain_match = _PLAYIT_DOMAIN_RE.search(logs)
+    claim_match = _PLAYIT_CLAIM_RE.search(logs)
+    if domain_match:
+        base["domain"] = domain_match.group(0)
+    if claim_match:
+        base["claim_url"] = claim_match.group(0)
+
+    if state in ("created", "restarting"):
+        base["status"] = "agent_started"
+        base["message"] = "Agent startet ..."
+    elif state == "running":
+        if base["domain"] and _PLAYIT_ACTIVE_RE.search(logs):
+            base["status"] = "active"
+            base["message"] = f"Tunnel aktiv ueber {base['domain']}."
+        elif base["claim_url"] or _PLAYIT_AUTH_HINT_RE.search(logs):
+            base["status"] = "auth_required"
+            base["message"] = (
+                "Token/Auth nötig. Öffne den Claim-Link und verknüpfe den Agent "
+                "mit deinem playit.gg-Account."
+            )
+        else:
+            base["status"] = "agent_started"
+            base["message"] = "Agent läuft. Domain wird gleich angezeigt."
+    elif state in ("exited", "dead"):
+        base["ok"] = False
+        base["status"] = "error"
+        base["message"] = f"Tunnel-Container gestoppt (Status: {state})."
+
+    return base
 
 
 @app.get("/api/servers/{server_id}/tunnel")
@@ -1151,37 +1447,49 @@ def tunnel_start(server_id: str, payload: TunnelStartRequest) -> Dict[str, Any]:
     if (parent.status or "").lower() != "running":
         raise HTTPException(409, "Bitte zuerst den Minecraft-Server starten")
 
+    client = docker_client()
+
+    # Bestehenden Sidecar nur dann uebernehmen, wenn er laeuft - sonst neu.
     existing = _tunnel_container_for(server_id)
     if existing:
         existing.reload()
         if (existing.status or "").lower() == "running":
-            return _tunnel_status_dto(parent, existing)
-        # alten gestoppten Tunnel entsorgen, dann neu starten
+            return _tunnel_status_dto(parent, existing, {"status": "active", "message": "Sidecar laeuft bereits."})
         try:
             existing.remove(force=True)
         except APIError:
             pass
 
-    # v1.0.5 Fix: Image expliziet vorab ziehen, damit der Fehler beim 'denied'
-    # auf dem Manifest sauber im 500er landet und der User es im UI sieht.
-    client = docker_client()
+    # 1) Image pull - Fehler sauber im DTO zurueckgeben (kein 500 ohne Details).
     try:
+        log.info("Pulling playit image %s", PLAYIT_IMAGE)
         client.images.pull(PLAYIT_IMAGE)
     except APIError as exc:
-        raise HTTPException(
-            500,
-            f"playit-Image konnte nicht gezogen werden ({PLAYIT_IMAGE}): "
-            f"{exc.explanation or exc}. Pruefe, ob das Image oeffentlich erreichbar ist.",
-        )
+        return {
+            "ok": False,
+            "status": "error",
+            "image": PLAYIT_IMAGE,
+            "container": None,
+            "logs_tail": "",
+            "domain": None,
+            "claim_url": None,
+            "message": (
+                f"Image-Pull fehlgeschlagen ({PLAYIT_IMAGE}): "
+                f"{exc.explanation or exc}. Pruefe Internet/Registry."
+            ),
+        }
 
-    tunnel_name = f"{parent.name}-playit"
-
-    # Offizieller Env-Name fuer 'playitgg/playit:latest' ist SECRET_KEY.
-    # Ohne SECRET_KEY startet der Container und gibt im Log einen Claim-Link
-    # auf https://playit.gg/claim aus.
+    # 2) Sidecar starten.
+    tunnel_name = _tunnel_name(server_id)
+    volume_name = _tunnel_volume(server_id)
     env: Dict[str, str] = {}
     if payload.secret:
         env["SECRET_KEY"] = payload.secret
+
+    network_mode = TUNNEL_NETWORK_MODE
+    if network_mode not in ("host",):
+        # Fallback: Network namespace mit dem MC-Server teilen (legacy)
+        network_mode = f"container:{parent.name}"
 
     try:
         tunnel = client.containers.run(
@@ -1196,28 +1504,48 @@ def tunnel_start(server_id: str, payload: TunnelStartRequest) -> Dict[str, Any]:
                 TUNNEL_FOR_LABEL: server_id,
                 TUNNEL_KIND_LABEL: "playit",
             },
-            network_mode=f"container:{parent.name}",  # share network namespace
+            network_mode=network_mode,
+            volumes={volume_name: {"bind": "/etc/playit", "mode": "rw"}},
             restart_policy={"Name": "unless-stopped"},
         )
     except APIError as exc:
-        raise HTTPException(500, f"Tunnel konnte nicht gestartet werden: {exc.explanation or exc}")
+        return {
+            "ok": False,
+            "status": "error",
+            "image": PLAYIT_IMAGE,
+            "container": tunnel_name,
+            "logs_tail": "",
+            "domain": None,
+            "claim_url": None,
+            "message": f"Tunnel-Container konnte nicht gestartet werden: {exc.explanation or exc}",
+        }
 
-    time.sleep(0.5)
+    # Kurz warten, damit playit Logs schreibt.
+    time.sleep(1.2)
     tunnel.reload()
-    return _tunnel_status_dto(parent, tunnel)
+    dto = _tunnel_status_dto(parent, tunnel)
+
+    # Wenn nach dem Start nur 'agent_started' steht und noch keine Auth/Active
+    # erkennbar ist, kommunizieren wir das klar im Message-Feld.
+    if dto.get("status") == "agent_started" and not dto.get("claim_url"):
+        dto["message"] = (
+            "Agent läuft. Wenn keine Domain erscheint, einen Moment warten "
+            "und Status erneut abrufen oder die Logs unten pruefen."
+        )
+    return dto
 
 
 @app.post("/api/servers/{server_id}/tunnel/stop")
 def tunnel_stop(server_id: str) -> Dict[str, Any]:
-    _get_container(server_id)  # validiert Berechtigung
+    _get_container(server_id)  # validiert Berechtigung (Minecraft-Server bleibt unangetastet)
     tunnel = _tunnel_container_for(server_id)
     if not tunnel:
-        return {"status": "not_started"}
+        return {"ok": True, "status": "not_started", "message": "Kein Tunnel aktiv."}
     try:
         tunnel.remove(force=True)
     except APIError as exc:
         raise HTTPException(500, f"Tunnel konnte nicht gestoppt werden: {exc}")
-    return {"status": "stopped"}
+    return {"ok": True, "status": "stopped", "message": "Tunnel-Sidecar entfernt."}
 
 
 # ---------------------------------------------------------------------------

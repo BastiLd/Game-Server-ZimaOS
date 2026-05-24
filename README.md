@@ -56,6 +56,7 @@ Anschliessend ist das Panel unter <http://HOST:8080> erreichbar.
 | POST    | `/api/servers/{id}/tunnel/start`  | playit.gg Tunnel starten       |
 | POST    | `/api/servers/{id}/tunnel/stop`   | playit.gg Tunnel stoppen       |
 | GET     | `/api/stats`                      | Aggregierte Stats              |
+| GET     | `/api/minecraft/versions`         | Release-Versionen (Mojang-Manifest, 12 h gecached, mit Fallback) |
 
 ## Konfiguration ueber Environment-Variablen
 
