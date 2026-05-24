@@ -338,7 +338,7 @@ def _get_container(server_id: str) -> Container:
 # ---------------------------------------------------------------------------
 # FastAPI-App
 # ---------------------------------------------------------------------------
-app = FastAPI(title="CraftControl Backend", version="0.1.0")
+app = FastAPI(title="CraftControl Backend", version="1.0.6")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],

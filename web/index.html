@@ -976,6 +976,17 @@
             line-height: 1.4;
         }
 
+        /* v1.0.6: Terminal-Inhalt markierbar/kopierbar machen.
+           Globales `* { user-select: none }` weiter oben wird hier ueberschrieben.
+           Optik bleibt 1:1 erhalten - nur Selektion und Caret-Cursor kommen dazu. */
+        .console-logs,
+        .console-logs * {
+            user-select: text !important;
+            -webkit-user-select: text !important;
+            -ms-user-select: text !important;
+        }
+        .console-logs { cursor: text; }
+
         /* Custom syntax coloring for console */
         .log-entry {
             word-break: break-all;
@@ -2103,8 +2114,10 @@
                                     <span class="console-dot"></span>
                                 </div>
                                 <div>craftcontrol@terminal:~ log-viewer</div>
-                                <div class="console-header-actions" style="cursor: pointer;" onclick="app.clearConsoleLogs()">
-                                    <span>[Konsole Leeren]</span>
+                                <div class="console-header-actions">
+                                    <span style="cursor:pointer;" onclick="app.copyTerminalText()" title="Markierung oder ganzes Terminal kopieren">[Kopieren]</span>
+                                    <span style="cursor:pointer;" onclick="app.downloadTerminalLog()" title="Terminal als .log-Datei speichern">[Log herunterladen]</span>
+                                    <span style="cursor:pointer;" onclick="app.clearConsoleLogs()">[Konsole Leeren]</span>
                                 </div>
                             </div>
                             
@@ -3699,6 +3712,17 @@
 
             renderConsoleLogs(server) {
                 const pane = document.getElementById('console-logs-pane');
+                if (!pane) return;
+
+                // v1.0.6: Wenn der Nutzer gerade Text im Terminal markiert hat,
+                // ueberspringen wir den Repaint, damit die Auswahl nicht verloren geht.
+                try {
+                    const sel = window.getSelection && window.getSelection();
+                    if (sel && sel.rangeCount && !sel.isCollapsed && sel.anchorNode && pane.contains(sel.anchorNode)) {
+                        return;
+                    }
+                } catch (_) { /* noop */ }
+
                 pane.innerHTML = '';
 
                 server.logs.forEach(log => {
@@ -3805,6 +3829,96 @@
                 if (server) {
                     server.logs = [`[${new Date().toLocaleTimeString()} SYSTEM]: Konsole geleert.`];
                     this.renderConsoleLogs(server);
+                }
+            }
+
+            /* --- v1.0.6: Terminal kopieren / herunterladen ---------------- */
+            // Liest den sichtbaren Terminal-Inhalt als reinen Text (kein HTML).
+            // Bevorzugt das im Server gehaltene logs-Array, faellt auf das
+            // DOM zurueck, falls das Frontend gerade keinen Server geladen hat.
+            getTerminalText() {
+                const server = this.getServer(this.activeServerId);
+                if (server && Array.isArray(server.logs) && server.logs.length) {
+                    return server.logs.join('\n');
+                }
+                const pane = document.getElementById('console-logs-pane');
+                if (!pane) return '';
+                // textContent statt innerHTML -> nie HTML in der Ausgabe
+                const lines = Array.from(pane.children).map(el => el.textContent.replace(/\s+$/g, ''));
+                return lines.join('\n');
+            }
+
+            // Kopiert die aktuelle Auswahl (wenn vorhanden) oder den ganzen Terminal-Text.
+            async copyTerminalText() {
+                const sel = window.getSelection ? window.getSelection().toString() : '';
+                const pane = document.getElementById('console-logs-pane');
+                let text = '';
+                if (sel && pane && pane.contains(window.getSelection().anchorNode)) {
+                    text = sel;
+                } else {
+                    text = this.getTerminalText();
+                }
+
+                if (!text) {
+                    this.showToast('Kein Terminal-Inhalt zum Kopieren.', 'warn');
+                    return;
+                }
+
+                try {
+                    if (navigator.clipboard && navigator.clipboard.writeText) {
+                        await navigator.clipboard.writeText(text);
+                    } else {
+                        // Fallback: unsichtbare textarea + execCommand('copy')
+                        const ta = document.createElement('textarea');
+                        ta.value = text;
+                        ta.setAttribute('readonly', '');
+                        ta.style.position = 'fixed';
+                        ta.style.opacity = '0';
+                        ta.style.left = '-9999px';
+                        document.body.appendChild(ta);
+                        ta.select();
+                        const ok = document.execCommand && document.execCommand('copy');
+                        document.body.removeChild(ta);
+                        if (!ok) throw new Error('execCommand copy nicht erlaubt');
+                    }
+                    this.showToast('Terminal-Text kopiert', 'success');
+                } catch (err) {
+                    this.showToast('Kopieren fehlgeschlagen: ' + (err && err.message ? err.message : err), 'error');
+                }
+            }
+
+            // Laedt den Terminal-Inhalt als .log-Datei herunter (rein clientseitig).
+            downloadTerminalLog() {
+                const text = this.getTerminalText();
+                if (!text) {
+                    this.showToast('Kein Terminal-Inhalt zum Speichern.', 'warn');
+                    return;
+                }
+
+                const server = this.getServer(this.activeServerId);
+                const safeName = server && server.name
+                    ? server.name.toLowerCase().replace(/[^a-z0-9_-]+/g, '-').replace(/^-+|-+$/g, '')
+                    : '';
+                const now = new Date();
+                const pad = n => String(n).padStart(2, '0');
+                const ts = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}_${pad(now.getHours())}-${pad(now.getMinutes())}-${pad(now.getSeconds())}`;
+                const filename = safeName
+                    ? `craftcontrol-${safeName}-terminal-${ts}.log`
+                    : `craftcontrol-terminal-${ts}.log`;
+
+                try {
+                    const blob = new Blob([text], { type: 'text/plain;charset=utf-8' });
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = filename;
+                    document.body.appendChild(a);
+                    a.click();
+                    document.body.removeChild(a);
+                    URL.revokeObjectURL(url);
+                    this.showToast(`Log gespeichert: ${filename}`, 'success');
+                } catch (err) {
+                    this.showToast('Download fehlgeschlagen: ' + (err && err.message ? err.message : err), 'error');
                 }
             }
 

@@ -87,6 +87,7 @@ Setze entweder einen Reverse-Proxy mit Authentifizierung davor oder
 betreibe es ausschliesslich im LAN/VPN.
 
 ## Bekannte Einschraenkungen
+## Bekannte Einschraenkungen
 
 - Backup-Tabellen sind weiterhin client-seitig simuliert und werden noch nicht
   vom Backend persistiert.
@@ -99,3 +100,9 @@ betreibe es ausschliesslich im LAN/VPN.
   Tabs startet die History neu.
 - Der Theme-Switcher ist im UI deaktiviert; die CSS-Variablen sind aber
   vorbereitet, sodass spaeter ueber `data-theme` gewechselt werden kann.
+
+## Aenderungen
+
+Versionsuebersicht in [`CHANGELOG.md`](./CHANGELOG.md). Fuer v1.0.6 dazu:
+Terminal-Inhalt ist jetzt markierbar/kopierbar, mit zwei neuen
+Header-Buttons (`[Kopieren]`, `[Log herunterladen]`).
