@@ -64,7 +64,7 @@ TUNNEL_KIND_LABEL = "craftcontrol.tunnel_kind"       # 'playit'
 
 CPU_OVERLOAD_THRESHOLD = float(os.getenv("CRAFTCONTROL_CPU_OVERLOAD", "90"))
 IDLE_OPTIMIZER_MINUTES = int(os.getenv("CRAFTCONTROL_IDLE_MINUTES", "30"))
-PLAYIT_IMAGE = os.getenv("CRAFTCONTROL_PLAYIT_IMAGE", "ghcr.io/playit-cloud/playit-cli:latest")
+PLAYIT_IMAGE = os.getenv("CRAFTCONTROL_PLAYIT_IMAGE", "playitgg/playit:latest")
 
 MC_IMAGE = os.getenv("CRAFTCONTROL_IMAGE", "itzg/minecraft-server:latest")
 DATA_ROOT = os.getenv("CRAFTCONTROL_DATA_ROOT", "/data/craftcontrol")
@@ -85,16 +85,18 @@ SOFTWARE_TYPE_MAP: Dict[str, str] = {
 
 # Welche Software laedt aus welchem Verzeichnis und welchen Modrinth-Loader
 # verwendet sie? "kind" steuert die Filter im Modrinth-Such-Endpoint:
-#   - "plugin" -> nur Bukkit-Plugins (Spigot/Paper/Mohist)
+#   - "plugin" -> nur Bukkit-Plugins (Spigot/Paper)
 #   - "mod"    -> nur Mods (Forge/Fabric)
-#   - "any"    -> beides (Vanilla/unklar)
+#   - "any"    -> beides (Vanilla/Mohist/Arclight) - Hybrid-Software
 SOFTWARE_PROFILE: Dict[str, Dict[str, Any]] = {
-    "Vanilla": {"dir": "plugins", "loaders": [],                "kind": "any"},
-    "Spigot":  {"dir": "plugins", "loaders": ["spigot", "bukkit", "paper"], "kind": "plugin"},
-    "Paper":   {"dir": "plugins", "loaders": ["paper", "spigot", "bukkit"], "kind": "plugin"},
-    "Mohist":  {"dir": "plugins", "loaders": ["paper", "spigot", "bukkit"], "kind": "plugin"},
-    "Forge":   {"dir": "mods",    "loaders": ["forge", "neoforge"],         "kind": "mod"},
-    "Fabric":  {"dir": "mods",    "loaders": ["fabric", "quilt"],           "kind": "mod"},
+    "Vanilla": {"dir": "plugins", "loaders": [],                                            "kind": "any"},
+    "Spigot":  {"dir": "plugins", "loaders": ["spigot", "bukkit", "paper"],                 "kind": "plugin"},
+    "Paper":   {"dir": "plugins", "loaders": ["paper", "spigot", "bukkit"],                 "kind": "plugin"},
+    # Mohist/Arclight koennen Plugins UND Forge-Mods laden -> Hybrid (any)
+    "Mohist":  {"dir": "plugins", "loaders": ["paper", "spigot", "bukkit", "forge"],        "kind": "any"},
+    "Arclight":{"dir": "plugins", "loaders": ["paper", "spigot", "bukkit", "forge"],        "kind": "any"},
+    "Forge":   {"dir": "mods",    "loaders": ["forge", "neoforge"],                         "kind": "mod"},
+    "Fabric":  {"dir": "mods",    "loaders": ["fabric", "quilt"],                           "kind": "mod"},
 }
 
 MODRINTH_BASE = "https://api.modrinth.com/v2"
@@ -220,7 +222,12 @@ def _status_from_container(c: Container) -> str:
 
 
 def _stats_for(c: Container) -> Dict[str, float]:
-    """Liest CPU/RAM aus einem Stats-Snapshot. Bei Fehler -> Nullen."""
+    """Liest CPU/RAM aus einem Stats-Snapshot. Bei Fehler -> Nullen.
+
+    v1.0.5: Die CPU-Auslastung wird *normalisiert* auf den gesamten Host
+    (0-100 %), passend zum ZimaOS-Systemdashboard. Wenn ein Container alle
+    Kerne voll auslastet, ergibt das hier 100 %, nicht 400 %.
+    """
     if (c.status or "").lower() != "running":
         return {"cpu": 0.0, "ram_mb": 0.0}
     try:
@@ -229,16 +236,24 @@ def _stats_for(c: Container) -> Dict[str, float]:
         log.warning("Stats fuer %s nicht abrufbar: %s", c.name, exc)
         return {"cpu": 0.0, "ram_mb": 0.0}
 
-    # CPU (Linux-Stil)
+    # CPU (Linux-Stil) - normalisiert auf Host (0-100 %).
     cpu_pct = 0.0
     try:
         cpu = stats["cpu_stats"]
         pre = stats["precpu_stats"]
         cpu_delta = cpu["cpu_usage"]["total_usage"] - pre["cpu_usage"]["total_usage"]
         sys_delta = cpu.get("system_cpu_usage", 0) - pre.get("system_cpu_usage", 0)
-        online = cpu.get("online_cpus") or len(cpu["cpu_usage"].get("percpu_usage") or [1])
+        # Anzahl Kerne: erst aus stats, dann fallback auf os.cpu_count()
+        online = cpu.get("online_cpus") \
+                 or len(cpu["cpu_usage"].get("percpu_usage") or []) \
+                 or os.cpu_count() \
+                 or 1
         if cpu_delta > 0 and sys_delta > 0:
-            cpu_pct = (cpu_delta / sys_delta) * online * 100.0
+            # Klassische docker-CLI-Formel ergibt "% pro Kern, summiert".
+            # Wir teilen wieder durch die Kernzahl, um den Anteil vom Host
+            # abzubilden, und clampen sicherheitshalber zwischen 0 und 100.
+            raw = (cpu_delta / sys_delta) * online * 100.0
+            cpu_pct = max(0.0, min(100.0, raw / online))
     except (KeyError, TypeError):
         cpu_pct = 0.0
 
@@ -754,7 +769,7 @@ async def install_plugin(server_id: str, payload: PluginInstallRequest) -> Dict[
     sw = container.labels.get(SOFTWARE_LABEL) or "Vanilla"
     mc_version = container.labels.get(VERSION_LABEL) or ""
     profile = _profile_for(sw)
-    plugin_dir = f"/data/{profile['dir']}"
+    default_plugin_dir = f"/data/{profile['dir']}"
 
     async with httpx.AsyncClient() as client:
         # 1) Passende Version finden
@@ -762,6 +777,7 @@ async def install_plugin(server_id: str, payload: PluginInstallRequest) -> Dict[
             version = await _modrinth_get(client, f"/version/{payload.version_id}")
             if not version:
                 raise HTTPException(404, "Version nicht gefunden")
+            project_meta: Dict[str, Any] = {}
         else:
             params: Dict[str, Any] = {}
             if profile["loaders"]:
@@ -774,6 +790,19 @@ async def install_plugin(server_id: str, payload: PluginInstallRequest) -> Dict[
                 raise HTTPException(404, f"Keine kompatible Version fuer {sw} {mc_version} gefunden")
             # Erste Version ist die neueste
             version = versions[0]
+            project_meta = {}
+
+        # Project-Meta fuer Hybrid-Routing (Mohist: plugin -> /plugins, mod -> /mods)
+        try:
+            project_meta = await _modrinth_get(client, f"/project/{payload.project_id}")
+        except HTTPException:
+            project_meta = {}
+
+        project_type = (project_meta.get("project_type") or version.get("project_type") or "").lower()
+        if profile["kind"] == "any" and project_type in ("plugin", "mod"):
+            plugin_dir = "/data/plugins" if project_type == "plugin" else "/data/mods"
+        else:
+            plugin_dir = default_plugin_dir
 
         files = version.get("files") or []
         if not files:
@@ -798,6 +827,13 @@ async def install_plugin(server_id: str, payload: PluginInstallRequest) -> Dict[
     _ensure_plugin_dir(container, plugin_dir)
     _put_file_into_container(container, plugin_dir, safe_name, r.content)
 
+    # v1.0.5 Fix: Sicherstellen, dass Minecraft die Datei laden darf.
+    # itzg/minecraft-server laeuft typischerweise als UID 1000; um Permission-
+    # Probleme zu vermeiden, setzen wir 0664 + ownership des MC-Users.
+    target = f"{plugin_dir}/{safe_name}"
+    _container_exec(container, ["chmod", "0664", target])
+    _container_exec(container, ["sh", "-c", f"chown $(stat -c '%u:%g' {shlex.quote(plugin_dir)}) {shlex.quote(target)} 2>/dev/null || true"])
+
     log.info("Plugin %s (%s) installiert in %s:%s",
              safe_name, payload.project_id, container.name, plugin_dir)
 
@@ -817,27 +853,43 @@ async def install_plugin(server_id: str, payload: PluginInstallRequest) -> Dict[
 @app.get("/api/servers/{server_id}/plugins/installed")
 def list_installed_plugins(server_id: str) -> Dict[str, Any]:
     container = _get_container(server_id)
-    plugin_dir = _plugin_dir_for(container)
-    items = _list_jars(container, plugin_dir)
-    return {"directory": plugin_dir, "items": items}
+    sw = container.labels.get(SOFTWARE_LABEL) or "Vanilla"
+    profile = _profile_for(sw)
+
+    # Hybrid (Mohist/Arclight): Plugins UND Mods anzeigen
+    dirs: List[str] = ["/data/plugins"] if profile["dir"] == "plugins" else ["/data/mods"]
+    if profile["kind"] == "any":
+        dirs = ["/data/plugins", "/data/mods"]
+
+    items: List[Dict[str, Any]] = []
+    for d in dirs:
+        for jar in _list_jars(container, d):
+            jar["directory"] = d
+            items.append(jar)
+    return {"directory": dirs[0], "directories": dirs, "items": items}
 
 
 @app.delete("/api/servers/{server_id}/plugins/installed/{filename}")
 def delete_installed_plugin(server_id: str, filename: str) -> Dict[str, Any]:
     container = _get_container(server_id)
-    plugin_dir = _plugin_dir_for(container)
+    sw = container.labels.get(SOFTWARE_LABEL) or "Vanilla"
+    profile = _profile_for(sw)
     safe_name = _safe_plugin_filename(filename)
 
-    # Pruefen, ob Datei existiert (Path-Traversal kann nicht passieren wegen Regex)
-    target = f"{plugin_dir}/{safe_name}"
-    code, _ = _container_exec(container, ["test", "-f", target])
-    if code != 0:
-        raise HTTPException(404, "Datei nicht gefunden")
+    candidates = ["/data/plugins"] if profile["dir"] == "plugins" else ["/data/mods"]
+    if profile["kind"] == "any":
+        candidates = ["/data/plugins", "/data/mods"]
 
-    code, out = _container_exec(container, ["rm", "-f", target])
-    if code != 0:
-        raise HTTPException(500, f"Loeschen fehlgeschlagen: {out}")
-    return {"status": "deleted", "filename": safe_name, "needs_restart": True}
+    for plugin_dir in candidates:
+        target = f"{plugin_dir}/{safe_name}"
+        code, _ = _container_exec(container, ["test", "-f", target])
+        if code == 0:
+            code, out = _container_exec(container, ["rm", "-f", target])
+            if code != 0:
+                raise HTTPException(500, f"Loeschen fehlgeschlagen: {out}")
+            return {"status": "deleted", "filename": safe_name, "directory": plugin_dir, "needs_restart": True}
+
+    raise HTTPException(404, "Datei nicht gefunden")
 
 
 # ---------------------------------------------------------------------------
@@ -1110,13 +1162,29 @@ def tunnel_start(server_id: str, payload: TunnelStartRequest) -> Dict[str, Any]:
         except APIError:
             pass
 
+    # v1.0.5 Fix: Image expliziet vorab ziehen, damit der Fehler beim 'denied'
+    # auf dem Manifest sauber im 500er landet und der User es im UI sieht.
+    client = docker_client()
+    try:
+        client.images.pull(PLAYIT_IMAGE)
+    except APIError as exc:
+        raise HTTPException(
+            500,
+            f"playit-Image konnte nicht gezogen werden ({PLAYIT_IMAGE}): "
+            f"{exc.explanation or exc}. Pruefe, ob das Image oeffentlich erreichbar ist.",
+        )
+
     tunnel_name = f"{parent.name}-playit"
+
+    # Offizieller Env-Name fuer 'playitgg/playit:latest' ist SECRET_KEY.
+    # Ohne SECRET_KEY startet der Container und gibt im Log einen Claim-Link
+    # auf https://playit.gg/claim aus.
     env: Dict[str, str] = {}
     if payload.secret:
-        env["PLAYIT_SECRET"] = payload.secret
+        env["SECRET_KEY"] = payload.secret
 
     try:
-        tunnel = docker_client().containers.run(
+        tunnel = client.containers.run(
             image=PLAYIT_IMAGE,
             name=tunnel_name,
             detach=True,

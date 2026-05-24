@@ -1701,6 +1701,127 @@
             transform: translateX(22px);
             background: var(--text-on-accent);
         }
+
+        /* ==========================================================================
+           13. v1.0.5 - Performance Sub-Tab
+           ========================================================================== */
+        .status-sub-tabs {
+            display: flex;
+            gap: 6px;
+            margin-bottom: 1.5rem;
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-glass);
+            border-radius: 50px;
+            padding: 4px;
+            width: fit-content;
+        }
+        .status-sub-btn {
+            background: transparent;
+            border: none;
+            color: var(--text-muted);
+            padding: 8px 16px;
+            border-radius: 50px;
+            cursor: pointer;
+            font-size: 0.85rem;
+            font-weight: 600;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            transition: all 0.25s ease;
+        }
+        .status-sub-btn:hover { color: var(--text-main); }
+        .status-sub-btn.active {
+            background: var(--accent-color);
+            color: var(--text-on-accent);
+            box-shadow: 0 4px 15px var(--accent-glow);
+        }
+
+        .status-sub-pane { display: none; }
+        .status-sub-pane.active { display: block; animation: fadeIn 0.4s ease forwards; }
+
+        .perf-toolbar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 1rem;
+            margin-bottom: 1.25rem;
+            flex-wrap: wrap;
+        }
+        .perf-toolbar h3 { font-size: 1.05rem; }
+        .perf-charts {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 1.25rem;
+        }
+        .perf-chart-card {
+            padding: 1.25rem 1.5rem;
+        }
+        .perf-chart-head {
+            display: flex;
+            justify-content: space-between;
+            align-items: baseline;
+            margin-bottom: 0.85rem;
+        }
+        .perf-chart-head h4 {
+            font-size: 0.9rem;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+        .perf-chart-head .perf-value {
+            font-size: 1.4rem;
+            font-weight: 800;
+            color: var(--text-main);
+        }
+        .perf-chart-body {
+            position: relative;
+            height: 140px;
+            background: var(--bg-tertiary);
+            border-radius: var(--radius-md);
+            border: 1px solid var(--border-glass);
+            padding: 8px;
+            overflow: hidden;
+        }
+        .perf-bars {
+            position: relative;
+            height: 100%;
+            display: flex;
+            align-items: flex-end;
+            gap: 2px;
+        }
+        .perf-bar {
+            flex: 1 1 0;
+            min-width: 2px;
+            height: 0%;
+            background: linear-gradient(180deg, var(--accent-color), var(--accent-hover));
+            border-radius: 2px 2px 0 0;
+            transition: height 0.45s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+        .perf-bar.cpu  { background: linear-gradient(180deg, hsl(190, 95%, 55%), hsl(160, 80%, 45%)); }
+        .perf-bar.ram  { background: linear-gradient(180deg, hsl(280, 90%, 65%), hsl(220, 90%, 55%)); }
+        .perf-bar.overloaded { background: linear-gradient(180deg, #ff6060, #ff2b2b) !important; box-shadow: 0 0 8px rgba(255,60,60,0.6); }
+
+        .perf-axes {
+            position: absolute;
+            top: 0; bottom: 0; right: 0; left: 0;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            padding: 6px 8px;
+            pointer-events: none;
+            color: var(--text-muted);
+            font-size: 0.65rem;
+            font-family: var(--font-mono);
+        }
+        .perf-axis-label {
+            opacity: 0.6;
+        }
+        .perf-empty {
+            color: var(--text-muted);
+            text-align: center;
+            font-size: 0.85rem;
+            padding: 1rem 0;
+        }
     </style>
 </head>
 <body>
@@ -1959,6 +2080,20 @@
                             </div>
                         </div>
 
+                        <!-- v1.0.5: Sub-Tabs Konsole / Performance -->
+                        <div class="status-sub-tabs" role="tablist">
+                            <button class="status-sub-btn active" data-sub="console" onclick="app.switchStatusSub('console')">
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/></svg>
+                                Konsole &amp; Spieler
+                            </button>
+                            <button class="status-sub-btn" data-sub="perf" onclick="app.switchStatusSub('perf')">
+                                📈 Performance-Verlauf
+                            </button>
+                        </div>
+
+                        <!-- Sub-Pane 1: Konsole + Spieler -->
+                        <div class="status-sub-pane active" id="status-sub-console">
+
                         <!-- Console Box -->
                         <div class="console-container">
                             <div class="console-header">
@@ -2003,6 +2138,61 @@
                                 <div class="player-empty">Keine Spieler online.</div>
                             </div>
                         </div>
+
+                        </div>
+                        <!-- /Sub-Pane Konsole -->
+
+                        <!-- Sub-Pane 2: Performance-Verlauf -->
+                        <div class="status-sub-pane" id="status-sub-perf">
+                            <div class="glass-panel" style="padding: 1.25rem 1.5rem;">
+                                <div class="perf-toolbar">
+                                    <h3>📈 Performance-Verlauf</h3>
+                                    <div style="display:flex; gap:0.6rem; align-items:center;">
+                                        <label for="perf-range" style="font-size:0.75rem; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.05em;">Zeitraum</label>
+                                        <select id="perf-range" class="form-control" style="width:auto; min-width:180px;" onchange="app.changePerfRange()">
+                                            <option value="5">Letzte 5 Minuten</option>
+                                            <option value="30">Letzte 30 Minuten</option>
+                                            <option value="120">Letzte 2 Stunden</option>
+                                        </select>
+                                    </div>
+                                </div>
+
+                                <div class="perf-charts">
+                                    <div class="perf-chart-card glass-panel">
+                                        <div class="perf-chart-head">
+                                            <h4>CPU Auslastung</h4>
+                                            <span class="perf-value" id="perf-cpu-now">0%</span>
+                                        </div>
+                                        <div class="perf-chart-body">
+                                            <div class="perf-axes">
+                                                <span class="perf-axis-label">100%</span>
+                                                <span class="perf-axis-label">50%</span>
+                                                <span class="perf-axis-label">0%</span>
+                                            </div>
+                                            <div class="perf-bars" id="perf-cpu-bars"></div>
+                                        </div>
+                                    </div>
+
+                                    <div class="perf-chart-card glass-panel">
+                                        <div class="perf-chart-head">
+                                            <h4>RAM Belegung</h4>
+                                            <span class="perf-value" id="perf-ram-now">0 / 0 GB</span>
+                                        </div>
+                                        <div class="perf-chart-body">
+                                            <div class="perf-axes">
+                                                <span class="perf-axis-label">100%</span>
+                                                <span class="perf-axis-label">50%</span>
+                                                <span class="perf-axis-label">0%</span>
+                                            </div>
+                                            <div class="perf-bars" id="perf-ram-bars"></div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <p id="perf-empty-hint" class="perf-empty">Noch keine Daten gesammelt - bitte einen Moment Geduld.</p>
+                            </div>
+                        </div>
+                        <!-- /Sub-Pane Performance -->
                     </div>
 
 
@@ -2434,6 +2624,7 @@
                 this.activeServerId = null;
                 this.activeTab = 'status';
                 this.simulationInterval = null;
+                this._statusSub = 'console';
                 
                 // Form element references
                 this.ramSlider = document.getElementById('new-server-ram');
@@ -3035,6 +3226,108 @@
                 this._renderConnectionInfo(server);
             }
 
+            /* --- v1.0.5 PERFORMANCE-VERLAUF (Sub-Tab) --- */
+            // Wir sammeln alle 4 s einen Datenpunkt und behalten max 1800
+            // (= 2 h bei 4 s). Der Range-Selector entscheidet, wie viele
+            // Punkte gerendert werden. Pro Server eigene History.
+            _perfBucket(serverId) {
+                if (!this._perf) this._perf = {};
+                if (!this._perf[serverId]) this._perf[serverId] = { points: [] };
+                return this._perf[serverId];
+            }
+
+            _recordPerfPoint(server) {
+                if (!server) return;
+                const bucket = this._perfBucket(server.id);
+                bucket.points.push({
+                    t: Date.now(),
+                    cpu: Number(server.cpuUsed) || 0,
+                    ramPct: Number(server.ramPct) || 0,
+                    ramUsed: Number(server.ramUsed) || 0,
+                    ramMax: Number(server.ramMax) || 0,
+                    overloaded: !!server.overloaded,
+                });
+                // 2 h * 60/4 = 1800 Punkte hard cap
+                if (bucket.points.length > 1800) bucket.points.shift();
+
+                if (this.activeServerId === server.id && this._statusSub === 'perf') {
+                    this.renderPerfChart();
+                }
+            }
+
+            switchStatusSub(sub) {
+                this._statusSub = sub;
+                document.querySelectorAll('.status-sub-btn').forEach(b => b.classList.toggle('active', b.dataset.sub === sub));
+                document.querySelectorAll('.status-sub-pane').forEach(p => p.classList.remove('active'));
+                const target = document.getElementById(`status-sub-${sub}`);
+                if (target) target.classList.add('active');
+                if (sub === 'perf') this.renderPerfChart();
+            }
+
+            changePerfRange() {
+                this.renderPerfChart();
+            }
+
+            renderPerfChart() {
+                const cpuRow = document.getElementById('perf-cpu-bars');
+                const ramRow = document.getElementById('perf-ram-bars');
+                const cpuNow = document.getElementById('perf-cpu-now');
+                const ramNow = document.getElementById('perf-ram-now');
+                const empty = document.getElementById('perf-empty-hint');
+                const rangeSel = document.getElementById('perf-range');
+                if (!cpuRow || !ramRow || !rangeSel) return;
+
+                if (!this.activeServerId) return;
+                const server = this.getServer(this.activeServerId);
+                const bucket = this._perfBucket(this.activeServerId);
+
+                const minutes = parseInt(rangeSel.value, 10) || 5;
+                const cutoff = Date.now() - minutes * 60_000;
+                const points = bucket.points.filter(p => p.t >= cutoff);
+
+                // Aktuell-Werte oben rechts
+                if (server) {
+                    cpuNow.innerText = `${(server.cpuUsed || 0).toFixed ? server.cpuUsed.toFixed(1) : server.cpuUsed}%`;
+                    const ramMax = server.ramMax || 0;
+                    const ramUsed = server.ramUsed || 0;
+                    ramNow.innerText = `${ramUsed.toFixed(1)} / ${ramMax}.0 GB`;
+                }
+
+                if (!points.length) {
+                    cpuRow.innerHTML = '';
+                    ramRow.innerHTML = '';
+                    empty.style.display = 'block';
+                    return;
+                }
+                empty.style.display = 'none';
+
+                // Wir samplen die Punkte auf max 60 Balken pro Chart, damit
+                // auch 2-h-Verlaeufe sauber dargestellt werden.
+                const target = 60;
+                const stride = Math.max(1, Math.floor(points.length / target));
+                const sampled = [];
+                for (let i = 0; i < points.length; i += stride) {
+                    const slice = points.slice(i, i + stride);
+                    const avgCpu = slice.reduce((s, p) => s + p.cpu, 0) / slice.length;
+                    const avgRam = slice.reduce((s, p) => s + p.ramPct, 0) / slice.length;
+                    const overloaded = slice.some(p => p.overloaded);
+                    sampled.push({ cpu: avgCpu, ram: avgRam, overloaded });
+                }
+
+                cpuRow.innerHTML = sampled.map(p => {
+                    const h = Math.max(0, Math.min(100, p.cpu));
+                    const cls = p.overloaded ? 'cpu overloaded' : 'cpu';
+                    return `<div class="perf-bar ${cls}" style="height:${h}%" title="${p.cpu.toFixed(1)}%"></div>`;
+                }).join('');
+
+                ramRow.innerHTML = sampled.map(p => {
+                    const h = Math.max(0, Math.min(100, p.ram));
+                    return `<div class="perf-bar ram" style="height:${h}%" title="${p.ram.toFixed(1)}%"></div>`;
+                }).join('');
+            }
+
+            /* --- (zurueck zu v1.0.4-Methoden) --- */
+
             _renderConnectionInfo(server) {
                 const portBadge = document.getElementById('dash-server-port-badge');
                 const localEl = document.getElementById('conn-local-address');
@@ -3375,6 +3668,7 @@
                         if (updated) {
                             this.updateDashboardHeaderAndControls(updated);
                             this.updateResourceMeters(updated);
+                            this._recordPerfPoint(updated);
                         }
                         if (this.activeTab === 'status') {
                             this.refreshLogs(this.activeServerId);
@@ -3385,6 +3679,8 @@
                         await this.refreshServers();
                         this.renderServerGrid();
                         this.renderGlobalStats();
+                        // Auch im Overview Performance sammeln (alle Server)
+                        servers.forEach(s => this._recordPerfPoint(s));
                     }
                 }, 4000);
             }

@@ -90,8 +90,12 @@ betreibe es ausschliesslich im LAN/VPN.
 
 - Backup-Tabellen sind weiterhin client-seitig simuliert und werden noch nicht
   vom Backend persistiert.
-- Spielerzahlen werden derzeit nicht ausgelesen (Anzeige immer `0 / 20`).
 - Die "eigene .jar hochladen"-Dropzone ist weiterhin nur visuell - reale
   Uploads bitte ueber den Modrinth-Katalog installieren.
+- Crafatar braucht UUIDs, daher liefert v1.0.4+ die Avatare ueber mc-heads.net.
+- playit.gg-Tunnel benoetigt beim ersten Start eine Verknuepfung ueber
+  https://playit.gg/claim oder einen `SECRET_KEY`.
+- Performance-Verlauf ist client-seitig (im Browser-State) - bei Reload des
+  Tabs startet die History neu.
 - Der Theme-Switcher ist im UI deaktiviert; die CSS-Variablen sind aber
   vorbereitet, sodass spaeter ueber `data-theme` gewechselt werden kann.
