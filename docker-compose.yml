@@ -18,10 +18,22 @@ services:
       CRAFTCONTROL_IMAGE: itzg/minecraft-server:latest
       CRAFTCONTROL_PORT_START: "25565"
       CRAFTCONTROL_PORT_END: "25600"
+      # Persistente Panel-Daten (Backups + Optimizer-Status) liegen hier:
+      CRAFTCONTROL_BACKUP_ROOT: /var/lib/craftcontrol/backups
+      # Optionaler Zugriffs-Token. Wenn gesetzt, verlangt das Panel einen
+      # 'Authorization: Bearer <token>'-Header (Login-Screen im UI).
+      # CRAFTCONTROL_TOKEN: "dein-geheimes-token"
+      # Cross-Origin nur freigeben, wenn das Frontend extern gehostet wird:
+      # CRAFTCONTROL_CORS_ORIGINS: "https://meine-domain.tld"
       TZ: Europe/Berlin
     volumes:
       # Docker-Socket weiterreichen, damit das Panel Container steuern darf.
       - /var/run/docker.sock:/var/run/docker.sock
+      # Backups + Optimizer-Status persistent halten.
+      - craftcontrol-backups:/var/lib/craftcontrol/backups
+
+volumes:
+  craftcontrol-backups:
 
   # Hinweis: Die Minecraft-Server-Container werden NICHT hier gestartet.
   # Sie werden vom Panel zur Laufzeit dynamisch via Docker API erzeugt

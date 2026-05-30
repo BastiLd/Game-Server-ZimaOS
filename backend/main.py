@@ -20,7 +20,10 @@ API-Endpunkte:
 
 from __future__ import annotations
 
+import gzip
+import hmac
 import io
+import json
 import logging
 import os
 import re
@@ -28,6 +31,8 @@ import shlex
 import tarfile
 import threading
 import time
+from contextlib import asynccontextmanager
+from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
@@ -35,9 +40,9 @@ import docker
 import httpx
 from docker.errors import APIError, NotFound
 from docker.models.containers import Container
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, File, HTTPException, Request, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
@@ -72,15 +77,34 @@ PORT_RANGE_START = int(os.getenv("CRAFTCONTROL_PORT_START", "25565"))
 PORT_RANGE_END = int(os.getenv("CRAFTCONTROL_PORT_END", "25600"))
 WEB_DIR = Path(os.getenv("CRAFTCONTROL_WEB_DIR", "/app/web"))
 
+# v1.1.0: Auth-Token (optional). Wenn gesetzt, verlangt das Backend einen
+# 'Authorization: Bearer <token>'-Header auf allen /api/*-Endpunkten.
+AUTH_TOKEN = os.getenv("CRAFTCONTROL_TOKEN", "").strip()
+
+# v1.1.0: CORS. Standardmaessig KEIN Cross-Origin (Frontend wird Same-Origin
+# ausgeliefert). Bei Bedarf kommagetrennte Origin-Liste setzen.
+CORS_ORIGINS = [o.strip() for o in os.getenv("CRAFTCONTROL_CORS_ORIGINS", "").split(",") if o.strip()]
+
+# v1.1.0: Pfade fuer persistente Panel-Daten (Backups + Optimizer-Status).
+# State-Datei liegt INNERHALB des Backup-Roots, damit sie auf demselben
+# persistenten Volume liegt und Container-Neuerstellungen ueberlebt.
+BACKUP_ROOT = Path(os.getenv("CRAFTCONTROL_BACKUP_ROOT", "/var/lib/craftcontrol/backups"))
+STATE_DIR = Path(os.getenv("CRAFTCONTROL_STATE_DIR", str(BACKUP_ROOT)))
+OPTIMIZER_STATE_FILE = STATE_DIR / ".optimizer-state.json"
+MAX_UPLOAD_MB = int(os.getenv("CRAFTCONTROL_MAX_UPLOAD_MB", "100"))
+
 # Mapping von UI-Software-Namen zu itzg/minecraft-server TYPE-Werten
 # https://docker-minecraft-server.readthedocs.io/en/latest/types-and-platforms/
 SOFTWARE_TYPE_MAP: Dict[str, str] = {
     "Vanilla": "VANILLA",
     "Spigot": "SPIGOT",
     "Paper": "PAPER",
+    "Purpur": "PURPUR",
     "Forge": "FORGE",
     "Fabric": "FABRIC",
     "Mohist": "MOHIST",
+    "Arclight": "ARCLIGHT",
+    "Magma": "MAGMA",
 }
 
 # Welche Loader-Kategorien laden wir bei Modrinth fuer Plugins bzw. Mods?
@@ -121,6 +145,17 @@ def docker_client() -> docker.DockerClient:
         if _docker_client is None:
             _docker_client = docker.from_env()
         return _docker_client
+
+
+# ---------------------------------------------------------------------------
+# v1.1.0: Hintergrund-Stats-Cache (nicht-blockierend)
+# c.stats(stream=False) dauert ~1-2 s pro Container. Frueher wurde das bei
+# jedem /api/servers-Aufruf synchron + seriell gemacht. Jetzt aktualisiert ein
+# Hintergrund-Thread den Cache, und die DTOs lesen nur noch daraus.
+# ---------------------------------------------------------------------------
+_stats_lock = threading.Lock()
+_STATS_CACHE: Dict[str, Dict[str, float]] = {}     # container.name -> {"cpu","ram_mb","ts"}
+_STATS_REFRESH_SECONDS = int(os.getenv("CRAFTCONTROL_STATS_INTERVAL", "5"))
 
 
 # ---------------------------------------------------------------------------
@@ -228,8 +263,11 @@ def _status_from_container(c: Container) -> str:
     return "offline"
 
 
-def _stats_for(c: Container) -> Dict[str, float]:
+def _measure_stats(c: Container) -> Dict[str, float]:
     """Liest CPU/RAM aus einem Stats-Snapshot. Bei Fehler -> Nullen.
+
+    ACHTUNG: blockiert ~1-2 s (Docker holt zwei Snapshots). Wird daher nur vom
+    Hintergrund-Thread aufgerufen, nicht im Request-Pfad.
 
     v1.0.5: Die CPU-Auslastung wird *normalisiert* auf den gesamten Host
     (0-100 %), passend zum ZimaOS-Systemdashboard. Wenn ein Container alle
@@ -278,6 +316,36 @@ def _stats_for(c: Container) -> Dict[str, float]:
     return {"cpu": round(cpu_pct, 1), "ram_mb": round(ram_mb, 1)}
 
 
+def _cached_stats(name: str) -> Dict[str, float]:
+    """Liest den zuletzt gemessenen Stats-Snapshot aus dem Cache (nie blockierend)."""
+    with _stats_lock:
+        cached = _STATS_CACHE.get(name)
+    if cached:
+        return {"cpu": cached.get("cpu", 0.0), "ram_mb": cached.get("ram_mb", 0.0)}
+    return {"cpu": 0.0, "ram_mb": 0.0}
+
+
+def _stats_refresher_loop() -> None:
+    """Hintergrund-Thread: misst CPU/RAM aller laufenden Container und cached sie."""
+    while True:
+        try:
+            running = [c for c in _list_managed_containers() if (c.status or "").lower() == "running"]
+            seen = set()
+            for c in running:
+                seen.add(c.name)
+                stats = _measure_stats(c)
+                stats["ts"] = time.time()
+                with _stats_lock:
+                    _STATS_CACHE[c.name] = stats
+            # Eintraege fuer nicht mehr laufende Container auf 0 setzen / entfernen
+            with _stats_lock:
+                for stale in [n for n in _STATS_CACHE if n not in seen]:
+                    _STATS_CACHE[stale] = {"cpu": 0.0, "ram_mb": 0.0, "ts": time.time()}
+        except Exception as exc:  # noqa: BLE001
+            log.warning("Stats-Refresher Fehler: %s", exc)
+        time.sleep(_STATS_REFRESH_SECONDS)
+
+
 def _host_port(c: Container) -> Optional[int]:
     """Erste gemappte 25565 host port (TCP)."""
     try:
@@ -303,15 +371,17 @@ def _container_to_dto(c: Container, with_stats: bool = True) -> Dict[str, Any]:
     software = c.labels.get(SOFTWARE_LABEL) or "Vanilla"
     version = c.labels.get(VERSION_LABEL) or "latest"
     ram_max = _ram_label_to_int(c.labels.get(RAM_LABEL))
-    optimizer_on = (c.labels.get(OPTIMIZER_LABEL) or "false").lower() == "true"
+    optimizer_on = _optimizer_enabled_for(c)
 
     status = _status_from_container(c)
-    stats = _stats_for(c) if with_stats else {"cpu": 0.0, "ram_mb": 0.0}
+    stats = _cached_stats(c.name) if with_stats else {"cpu": 0.0, "ram_mb": 0.0}
     ram_used_gb = round(stats["ram_mb"] / 1024, 2)
 
     # Spieler-Cache (befuellt durch /players-Endpoint und Idle-Watchdog)
-    cached_players = _PLAYERS_CACHE.get(c.name) or {}
+    with _players_lock:
+        cached_players = dict(_PLAYERS_CACHE.get(c.name) or {})
     players_current = cached_players.get("count", 0)
+    players_max = cached_players.get("max", 20)
 
     return {
         "id": c.name,                  # stabiler Identifier nach aussen
@@ -326,7 +396,7 @@ def _container_to_dto(c: Container, with_stats: bool = True) -> Dict[str, Any]:
         "cpu_used": stats["cpu"],
         "overloaded": stats["cpu"] >= CPU_OVERLOAD_THRESHOLD,
         "players_current": players_current,
-        "players_max": 20,
+        "players_max": players_max,
         "port": _host_port(c),
         "optimizer": optimizer_on,
     }
@@ -345,14 +415,68 @@ def _get_container(server_id: str) -> Container:
 # ---------------------------------------------------------------------------
 # FastAPI-App
 # ---------------------------------------------------------------------------
-app = FastAPI(title="CraftControl Backend", version="1.0.7")
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=False,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+@asynccontextmanager
+async def _lifespan(_app: FastAPI):
+    # Persistierten Optimizer-Status laden
+    _load_optimizer_state()
+    # Hintergrund-Threads starten (Idle-Watchdog + Stats-Refresher)
+    threading.Thread(target=_idle_watchdog_loop, name="idle-watchdog", daemon=True).start()
+    threading.Thread(target=_stats_refresher_loop, name="stats-refresher", daemon=True).start()
+    log.info("CraftControl gestartet (Auth: %s, CORS-Origins: %s)",
+             "an" if AUTH_TOKEN else "aus", CORS_ORIGINS or "keine")
+    yield
+
+
+app = FastAPI(title="CraftControl Backend", version="1.1.0", lifespan=_lifespan)
+
+# CORS: standardmaessig kein Cross-Origin (Frontend ist Same-Origin).
+if CORS_ORIGINS:
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=CORS_ORIGINS,
+        allow_credentials=False,
+        allow_methods=["GET", "POST", "PUT", "DELETE"],
+        allow_headers=["Authorization", "Content-Type", "Accept"],
+    )
+
+
+# ---------------------------------------------------------------------------
+# v1.1.0: Optionale Token-Authentifizierung
+# Nur aktiv, wenn CRAFTCONTROL_TOKEN gesetzt ist. Schuetzt alle /api/*-Pfade
+# (ausser Health und Auth-Check). Frontend/Static bleiben oeffentlich, damit
+# der Login-Screen ausgeliefert werden kann.
+# ---------------------------------------------------------------------------
+_AUTH_EXEMPT_PATHS = {"/api/health", "/api/auth/check"}
+
+
+def _token_from_request(request: Request) -> str:
+    header = request.headers.get("authorization") or ""
+    if header.lower().startswith("bearer "):
+        return header[7:].strip()
+    return ""
+
+
+def _token_valid(token: str) -> bool:
+    if not AUTH_TOKEN:
+        return True
+    return bool(token) and hmac.compare_digest(token, AUTH_TOKEN)
+
+
+@app.middleware("http")
+async def _auth_middleware(request: Request, call_next):
+    if AUTH_TOKEN and request.url.path.startswith("/api/") and request.url.path not in _AUTH_EXEMPT_PATHS:
+        if not _token_valid(_token_from_request(request)):
+            return JSONResponse(status_code=401, content={"detail": "Nicht autorisiert"})
+    return await call_next(request)
+
+
+@app.get("/api/auth/check")
+def auth_check(request: Request) -> Dict[str, Any]:
+    """Sagt dem Frontend, ob ein Token noetig ist und ob der mitgesendete passt."""
+    return {
+        "auth_required": bool(AUTH_TOKEN),
+        "ok": _token_valid(_token_from_request(request)),
+    }
 
 
 # -------- API: Servers ------------------------------------------------------
@@ -664,6 +788,7 @@ def _container_exec(container: Container, cmd: List[str]) -> tuple[int, str]:
 # ---------------------------------------------------------------------------
 # Cache pro Container: {"count": int, "players": [str], "ts": float}.
 # Wird vom Idle-Watchdog UND vom /players-Endpoint geschrieben/gelesen.
+_players_lock = threading.Lock()
 _PLAYERS_CACHE: Dict[str, Dict[str, Any]] = {}
 _PLAYERS_CACHE_TTL = 4.0   # Sekunden, bevor erneut RCON gefragt wird
 
@@ -703,23 +828,26 @@ def _parse_player_list(output: str) -> Dict[str, Any]:
 
 def _refresh_players_cache(container: Container) -> Dict[str, Any]:
     """Holt die Spielerliste per RCON und cached sie kurz."""
-    cached = _PLAYERS_CACHE.get(container.name)
     now = time.time()
-    if cached and (now - cached.get("ts", 0)) < _PLAYERS_CACHE_TTL:
-        return cached
+    with _players_lock:
+        cached = _PLAYERS_CACHE.get(container.name)
+        if cached and (now - cached.get("ts", 0)) < _PLAYERS_CACHE_TTL:
+            return dict(cached)
 
     if (container.status or "").lower() != "running":
         info = {"count": 0, "max": 20, "players": [], "ts": now}
-        _PLAYERS_CACHE[container.name] = info
-        return info
+        with _players_lock:
+            _PLAYERS_CACHE[container.name] = info
+        return dict(info)
 
     code, out = _rcon(container, "list")
     info: Dict[str, Any] = {"count": 0, "max": 20, "players": [], "ts": now}
     if code == 0:
         info.update(_parse_player_list(out))
     info["ts"] = now
-    _PLAYERS_CACHE[container.name] = info
-    return info
+    with _players_lock:
+        _PLAYERS_CACHE[container.name] = info
+    return dict(info)
 
 
 def _ensure_plugin_dir(container: Container, plugin_dir: str) -> None:
@@ -1085,6 +1213,195 @@ def delete_installed_plugin(server_id: str, filename: str) -> Dict[str, Any]:
     raise HTTPException(404, "Datei nicht gefunden")
 
 
+# -------- API: Eigene .jar hochladen ---------------------------------------
+@app.post("/api/servers/{server_id}/plugins/upload")
+async def upload_plugin(
+    server_id: str,
+    file: UploadFile = File(...),
+    target: Optional[str] = None,
+) -> Dict[str, Any]:
+    """
+    Laedt eine vom Nutzer hochgeladene .jar in den Plugin-/Mod-Ordner.
+    Zielordner: explizites 'target' (plugins|mods) oder Profil-Default.
+    """
+    container = _get_container(server_id)
+    sw = container.labels.get(SOFTWARE_LABEL) or "Vanilla"
+    profile = _profile_for(sw)
+
+    filename = os.path.basename(file.filename or "")
+    safe_name = _safe_plugin_filename(filename)
+
+    if target in ("plugins", "mods"):
+        plugin_dir = f"/data/{target}"
+    else:
+        plugin_dir = f"/data/{profile['dir']}"
+
+    # Inhalt lesen mit Groessenlimit
+    max_bytes = MAX_UPLOAD_MB * 1024 * 1024
+    content = await file.read()
+    if len(content) > max_bytes:
+        raise HTTPException(413, f"Datei ueberschreitet Limit von {MAX_UPLOAD_MB} MB")
+    if not content:
+        raise HTTPException(400, "Leere Datei")
+
+    _ensure_plugin_dir(container, plugin_dir)
+    _put_file_into_container(container, plugin_dir, safe_name, content)
+
+    # Permissions wie bei Modrinth-Install setzen (siehe install_plugin)
+    full = f"{plugin_dir}/{safe_name}"
+    _container_exec(container, ["chmod", "0664", full])
+    _container_exec(container, ["sh", "-c", f"chown $(stat -c '%u:%g' {shlex.quote(plugin_dir)}) {shlex.quote(full)} 2>/dev/null || true"])
+
+    log.info("Upload %s (%d bytes) -> %s:%s", safe_name, len(content), container.name, plugin_dir)
+    return {
+        "status": "installed",
+        "filename": safe_name,
+        "directory": plugin_dir,
+        "size": len(content),
+        "needs_restart": True,
+    }
+
+
+# ---------------------------------------------------------------------------
+# v1.1.0: Echte Backups (tar.gz von /data, gespeichert auf dem Panel-Volume)
+# ---------------------------------------------------------------------------
+SAFE_BACKUP_RE = re.compile(r"^[A-Za-z0-9._\-]+\.tar\.gz$")
+
+
+def _backup_dir_for(container: Container) -> Path:
+    d = BACKUP_ROOT / container.name
+    d.mkdir(parents=True, exist_ok=True)
+    return d
+
+
+def _safe_backup_name(name: str) -> str:
+    base = os.path.basename(name or "")
+    if not SAFE_BACKUP_RE.match(base):
+        raise HTTPException(400, f"Ungueltiger Backup-Name: {name}")
+    return base
+
+
+def _backup_meta(path: Path) -> Dict[str, Any]:
+    st = path.stat()
+    return {
+        "name": path.name,
+        "size": st.st_size,
+        "size_human": _human_size(st.st_size),
+        "date": datetime.fromtimestamp(st.st_mtime).strftime("%d.%m.%Y, %H:%M"),
+        "mtime": st.st_mtime,
+    }
+
+
+def _human_size(num: float) -> str:
+    for unit in ("B", "KB", "MB", "GB", "TB"):
+        if num < 1024 or unit == "TB":
+            return f"{num:.0f} {unit}" if unit in ("B", "KB") else f"{num:.1f} {unit}"
+        num /= 1024
+    return f"{num:.1f} TB"
+
+
+@app.get("/api/servers/{server_id}/backups")
+def list_backups(server_id: str) -> Dict[str, Any]:
+    container = _get_container(server_id)
+    d = _backup_dir_for(container)
+    items = [_backup_meta(p) for p in d.glob("*.tar.gz") if p.is_file()]
+    items.sort(key=lambda m: m["mtime"], reverse=True)
+    return {"items": items}
+
+
+@app.post("/api/servers/{server_id}/backups", status_code=201)
+def create_backup(server_id: str) -> Dict[str, Any]:
+    """
+    Erstellt ein tar.gz von /data des Containers. Bei laufendem Server wird
+    vorher 'save-all flush' per RCON ausgeloest, damit die Welt konsistent ist.
+    """
+    container = _get_container(server_id)
+    if (container.status or "").lower() == "running":
+        _rcon(container, "save-all flush")
+
+    d = _backup_dir_for(container)
+    ts = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+    out_path = d / f"backup_{ts}.tar.gz"
+
+    try:
+        bits, _stat = container.get_archive("/data")
+    except (APIError, NotFound) as exc:
+        raise HTTPException(500, f"Backup fehlgeschlagen (get_archive): {exc}")
+
+    try:
+        with gzip.open(out_path, "wb") as gz:
+            for chunk in bits:
+                gz.write(chunk)
+    except OSError as exc:
+        out_path.unlink(missing_ok=True)
+        raise HTTPException(500, f"Backup konnte nicht geschrieben werden: {exc}")
+
+    log.info("Backup erstellt: %s (%d bytes)", out_path, out_path.stat().st_size)
+    return _backup_meta(out_path)
+
+
+@app.get("/api/servers/{server_id}/backups/{name}")
+def download_backup(server_id: str, name: str) -> FileResponse:
+    container = _get_container(server_id)
+    safe = _safe_backup_name(name)
+    path = _backup_dir_for(container) / safe
+    if not path.is_file():
+        raise HTTPException(404, "Backup nicht gefunden")
+    return FileResponse(str(path), media_type="application/gzip", filename=safe)
+
+
+@app.delete("/api/servers/{server_id}/backups/{name}")
+def delete_backup(server_id: str, name: str) -> Dict[str, Any]:
+    container = _get_container(server_id)
+    safe = _safe_backup_name(name)
+    path = _backup_dir_for(container) / safe
+    if not path.is_file():
+        raise HTTPException(404, "Backup nicht gefunden")
+    path.unlink()
+    return {"status": "deleted", "name": safe}
+
+
+@app.post("/api/servers/{server_id}/backups/{name}/restore")
+def restore_backup(server_id: str, name: str) -> Dict[str, Any]:
+    """
+    Spielt ein Backup zurueck. ACHTUNG: ueberschreibt /data. Der Server wird
+    dafuer gestoppt und anschliessend wieder in den vorherigen Zustand versetzt.
+    """
+    container = _get_container(server_id)
+    safe = _safe_backup_name(name)
+    path = _backup_dir_for(container) / safe
+    if not path.is_file():
+        raise HTTPException(404, "Backup nicht gefunden")
+
+    was_running = (container.status or "").lower() == "running"
+    if was_running:
+        try:
+            container.stop(timeout=30)
+            container.reload()
+        except APIError as exc:
+            raise HTTPException(500, f"Server konnte nicht gestoppt werden: {exc}")
+
+    # tar.gz entpacken und als (unkomprimierten) tar-Stream zurueckschreiben.
+    # get_archive('/data') liefert ein tar mit Top-Level-Ordner 'data/',
+    # daher muss beim Restore nach '/' entpackt werden (-> landet in /data).
+    try:
+        with gzip.open(path, "rb") as gz:
+            raw_tar = gz.read()
+        if not container.put_archive("/", raw_tar):
+            raise HTTPException(500, "Wiederherstellung fehlgeschlagen (put_archive)")
+    except OSError as exc:
+        raise HTTPException(500, f"Backup nicht lesbar: {exc}")
+
+    if was_running:
+        try:
+            container.start()
+        except APIError as exc:
+            raise HTTPException(500, f"Server konnte nach Restore nicht gestartet werden: {exc}")
+
+    log.info("Backup wiederhergestellt: %s", path)
+    return {"status": "restored", "name": safe, "restarted": was_running}
+
+
 # ---------------------------------------------------------------------------
 # v1.0.4: Spieler-API (RCON list / op / kick / ban / deop)
 # ---------------------------------------------------------------------------
@@ -1264,32 +1581,54 @@ def write_editable_file(server_id: str, filename: str, payload: FileWriteRequest
 
 # ---------------------------------------------------------------------------
 # v1.0.4: RAM-Optimierer (Idle-Watchdog)
+# v1.1.0: Status wird auf Platte persistiert (Labels lassen sich nach dem
+# Create nicht mehr aendern), damit er Panel-Neustarts ueberlebt.
 # ---------------------------------------------------------------------------
-@app.put("/api/servers/{server_id}/optimizer")
-def set_optimizer(server_id: str, payload: OptimizerRequest) -> Dict[str, Any]:
-    """
-    Schaltet den Auto-RAM-Optimierer per Container-Label um.
-    Der Hintergrund-Watchdog liest dieses Label und leitet bei 0 Spielern
-    fuer >= IDLE_OPTIMIZER_MINUTES eine GC-Hilfe ein (save-all + reload).
-    """
-    container = _get_container(server_id)
-    new_labels = dict(container.labels or {})
-    new_labels[OPTIMIZER_LABEL] = "true" if payload.enabled else "false"
-    # Docker erlaubt label-update nicht direkt -> wir merken uns nur den Wert,
-    # indem wir 'docker update' Workaround nutzen ist nicht moeglich. Wir
-    # schreiben den Zustand stattdessen in den In-Memory-Store und legen
-    # ihn beim Neuanlegen mit ins Label. Reicht fuer die Laufzeit voellig.
-    _OPTIMIZER_STATE[container.name] = bool(payload.enabled)
-    return {"status": "ok", "enabled": bool(payload.enabled)}
-
-
-# In-memory Optimierer-Status (Labels lassen sich nach Create nicht aendern)
+_optimizer_lock = threading.Lock()
 _OPTIMIZER_STATE: Dict[str, bool] = {}
 
 
+def _load_optimizer_state() -> None:
+    try:
+        if OPTIMIZER_STATE_FILE.is_file():
+            data = json.loads(OPTIMIZER_STATE_FILE.read_text(encoding="utf-8"))
+            if isinstance(data, dict):
+                with _optimizer_lock:
+                    _OPTIMIZER_STATE.update({k: bool(v) for k, v in data.items()})
+                log.info("Optimizer-Status geladen (%d Eintraege)", len(data))
+    except Exception as exc:  # noqa: BLE001
+        log.warning("Optimizer-Status konnte nicht geladen werden: %s", exc)
+
+
+def _save_optimizer_state() -> None:
+    try:
+        OPTIMIZER_STATE_FILE.parent.mkdir(parents=True, exist_ok=True)
+        with _optimizer_lock:
+            snapshot = dict(_OPTIMIZER_STATE)
+        OPTIMIZER_STATE_FILE.write_text(json.dumps(snapshot), encoding="utf-8")
+    except Exception as exc:  # noqa: BLE001
+        log.warning("Optimizer-Status konnte nicht gespeichert werden: %s", exc)
+
+
+@app.put("/api/servers/{server_id}/optimizer")
+def set_optimizer(server_id: str, payload: OptimizerRequest) -> Dict[str, Any]:
+    """
+    Schaltet den Auto-RAM-Optimierer um. Der Zustand wird im persistenten
+    State-Store gehalten (Container-Labels sind nach Create unveraenderlich).
+    Der Hintergrund-Watchdog liest ihn und leitet bei 0 Spielern fuer
+    >= IDLE_OPTIMIZER_MINUTES eine GC-Hilfe ein (save-all flush).
+    """
+    container = _get_container(server_id)
+    with _optimizer_lock:
+        _OPTIMIZER_STATE[container.name] = bool(payload.enabled)
+    _save_optimizer_state()
+    return {"status": "ok", "enabled": bool(payload.enabled)}
+
+
 def _optimizer_enabled_for(container: Container) -> bool:
-    if container.name in _OPTIMIZER_STATE:
-        return _OPTIMIZER_STATE[container.name]
+    with _optimizer_lock:
+        if container.name in _OPTIMIZER_STATE:
+            return _OPTIMIZER_STATE[container.name]
     return (container.labels.get(OPTIMIZER_LABEL) or "false").lower() == "true"
 
 
@@ -1329,13 +1668,10 @@ def _idle_watchdog_loop() -> None:
         time.sleep(60)
 
 
-@app.on_event("startup")
-def _start_idle_watchdog() -> None:
-    t = threading.Thread(target=_idle_watchdog_loop, name="idle-watchdog", daemon=True)
-    t.start()
+# Hinweis: Die Hintergrund-Threads (Idle-Watchdog + Stats-Refresher) werden
+# im lifespan-Handler von FastAPI gestartet (siehe oben).
 
 
-# ---------------------------------------------------------------------------
 # ---------------------------------------------------------------------------
 # v1.0.4/v1.0.7: playit.gg Tunnel (Sidecar-Container)
 # Image: playitcloud/playit:latest  (offizielles Docker-Image laut Docker Hub)

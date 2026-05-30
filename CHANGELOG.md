@@ -4,6 +4,40 @@ Alle nennenswerten Aenderungen an CraftControl. Format lose angelehnt an
 [Keep a Changelog](https://keepachangelog.com/de/1.1.0/), Versionierung
 nach [SemVer](https://semver.org/lang/de/).
 
+## [1.1.0] - 2026-05-30
+
+### Added
+- **Optionaler Login-Token**: Mit `CRAFTCONTROL_TOKEN` verlangt das Panel einen
+  `Authorization: Bearer`-Token. Neuer Login-Screen + Abmelden-Button im UI,
+  Endpoint `GET /api/auth/check`. Ohne gesetzten Token bleibt alles wie bisher.
+- **Echte Backups**: `/data` wird als `tar.gz` auf einem persistenten Panel-Volume
+  gesichert. Erstellen, Auflisten, Herunterladen, Loeschen und Einspielen
+  (Server-Stopp + Neustart) ueber neue Endpunkte unter `/api/servers/{id}/backups`.
+- **Echter `.jar`-Upload**: `POST /api/servers/{id}/plugins/upload` (multipart),
+  Frontend mit echtem Fortschrittsbalken. Die alte „nur visuelle" Dropzone ist weg.
+- **Serversoftware**: Purpur und Arclight sind jetzt anlegbar (passend zu den
+  bereits vorhandenen Modrinth-Profilen).
+- **Healthcheck** im Docker-Image (nutzt `/api/health`).
+
+### Changed
+- **Frontend aufgeteilt**: `web/index.html` enthaelt nur noch Markup; Styles und
+  Logik liegen in `web/style.css` bzw. `web/app.js` (ueber `/static` ausgeliefert).
+- **Nicht-blockierende Stats**: CPU/RAM werden von einem Hintergrund-Thread
+  gesammelt und gecached; `/api/servers` blockiert nicht mehr pro Container.
+- **Theme-Switcher reaktiviert** und Auswahl in `localStorage` persistiert.
+- **Optimizer-Status** wird persistiert (ueberlebt Panel-Neustarts).
+- **CORS** standardmaessig auf Same-Origin beschraenkt (`CRAFTCONTROL_CORS_ORIGINS`).
+- **`players_max`** wird echt aus der RCON-`list`-Antwort uebernommen statt fix 20.
+- FastAPI-Startup auf `lifespan` umgestellt (statt deprecated `on_event`).
+
+### Fixed
+- **XSS-Haertung**: Konsolen-Logzeilen (inkl. Spieler-Chat) werden vor der
+  Einfaerbung HTML-escaped; Servername/Software/Version in den Karten escaped.
+
+### Security
+- Token-Auth (optional) und eingeschraenktes CORS reduzieren die Angriffsflaeche
+  des Panels, das ueber den Docker-Socket Root-aequivalente Rechte hat.
+
 ## [1.0.7] - 2026-05-24
 
 ### Fixed

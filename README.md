@@ -13,7 +13,9 @@ stoppt und ueberwacht.
 │   ├── main.py             # FastAPI-Anwendung
 │   └── requirements.txt
 ├── web/
-│   └── index.html          # Frontend (single-page)
+│   ├── index.html          # Frontend-Markup (single-page)
+│   ├── style.css           # Styles (ausgelagert, v1.1.0)
+│   └── app.js              # Frontend-Logik (ausgelagert, v1.1.0)
 ├── Dockerfile
 ├── docker-compose.yml
 └── README.md
@@ -43,6 +45,13 @@ Anschliessend ist das Panel unter <http://HOST:8080> erreichbar.
 | POST    | `/api/servers/{id}/plugins/install` | Plugin/Mod von Modrinth installieren |
 | GET     | `/api/servers/{id}/plugins/installed` | Installierte .jar-Dateien     |
 | DELETE  | `/api/servers/{id}/plugins/installed/{filename}` | Erweiterung entfernen |
+| POST    | `/api/servers/{id}/plugins/upload` | Eigene `.jar` hochladen (multipart) |
+| GET     | `/api/servers/{id}/backups`       | Backups auflisten              |
+| POST    | `/api/servers/{id}/backups`       | Backup von `/data` erstellen (tar.gz) |
+| GET     | `/api/servers/{id}/backups/{name}` | Backup herunterladen          |
+| DELETE  | `/api/servers/{id}/backups/{name}` | Backup loeschen               |
+| POST    | `/api/servers/{id}/backups/{name}/restore` | Backup einspielen (Server-Stopp+Start) |
+| GET     | `/api/auth/check`                 | Prueft, ob/welcher Token noetig ist |
 | GET     | `/api/servers/{id}/players`       | Online-Spieler (RCON `list`)   |
 | POST    | `/api/servers/{id}/players/op`    | OP vergeben                    |
 | POST    | `/api/servers/{id}/players/deop`  | OP entziehen                   |
@@ -66,6 +75,11 @@ Anschliessend ist das Panel unter <http://HOST:8080> erreichbar.
 | `CRAFTCONTROL_PORT_START` | `25565`                          | Untere Grenze des dynamischen Port-Bereichs  |
 | `CRAFTCONTROL_PORT_END`   | `25600`                          | Obere Grenze                                 |
 | `CRAFTCONTROL_WEB_DIR`    | `/app/web`                       | Pfad zum statischen Frontend                 |
+| `CRAFTCONTROL_TOKEN`      | _(leer)_                         | Optionaler Zugriffs-Token. Wenn gesetzt, ist ein Login (Bearer-Token) noetig |
+| `CRAFTCONTROL_CORS_ORIGINS` | _(leer)_                       | Kommagetrennte erlaubte Cross-Origins (Default: keine, Same-Origin) |
+| `CRAFTCONTROL_BACKUP_ROOT` | `/var/lib/craftcontrol/backups` | Ablageort fuer Backups + Optimizer-Status (persistentes Volume) |
+| `CRAFTCONTROL_MAX_UPLOAD_MB` | `100`                         | Maximale Groesse beim `.jar`-Upload          |
+| `CRAFTCONTROL_STATS_INTERVAL` | `5`                          | Intervall (Sek.) des Hintergrund-Stats-Sammlers |
 
 ## Wie erkennt das Panel "seine" Container?
 
@@ -83,27 +97,23 @@ unter `/data` in den Minecraft-Container gemountet wird. Welt, Plugins und
 ## Sicherheitshinweise
 
 Das Panel hat ueber den Docker-Socket faktisch Root-Rechte auf dem Host.
-Es ist daher nicht fuer den Betrieb in einem oeffentlichen Netz gedacht.
-Setze entweder einen Reverse-Proxy mit Authentifizierung davor oder
-betreibe es ausschliesslich im LAN/VPN.
+Es ist daher nicht fuer den ungeschuetzten Betrieb in einem oeffentlichen Netz
+gedacht. Seit v1.1.0 kann ein optionaler Zugriffs-Token gesetzt werden
+(`CRAFTCONTROL_TOKEN`); dann verlangt das Panel einen Login. Fuer den Betrieb
+im Internet wird zusaetzlich ein Reverse-Proxy mit TLS empfohlen, ansonsten
+LAN/VPN.
 
 ## Bekannte Einschraenkungen
-## Bekannte Einschraenkungen
 
-- Backup-Tabellen sind weiterhin client-seitig simuliert und werden noch nicht
-  vom Backend persistiert.
-- Die "eigene .jar hochladen"-Dropzone ist weiterhin nur visuell - reale
-  Uploads bitte ueber den Modrinth-Katalog installieren.
 - Crafatar braucht UUIDs, daher liefert v1.0.4+ die Avatare ueber mc-heads.net.
 - playit.gg-Tunnel benoetigt beim ersten Start eine Verknuepfung ueber
   https://playit.gg/claim oder einen `SECRET_KEY`.
 - Performance-Verlauf ist client-seitig (im Browser-State) - bei Reload des
   Tabs startet die History neu.
-- Der Theme-Switcher ist im UI deaktiviert; die CSS-Variablen sind aber
-  vorbereitet, sodass spaeter ueber `data-theme` gewechselt werden kann.
 
 ## Aenderungen
 
-Versionsuebersicht in [`CHANGELOG.md`](./CHANGELOG.md). Fuer v1.0.6 dazu:
-Terminal-Inhalt ist jetzt markierbar/kopierbar, mit zwei neuen
-Header-Buttons (`[Kopieren]`, `[Log herunterladen]`).
+Versionsuebersicht in [`CHANGELOG.md`](./CHANGELOG.md). Highlights v1.1.0:
+optionaler Login-Token, echte Backups (erstellen/herunterladen/loeschen/
+einspielen) und echter `.jar`-Upload, XSS-Haertung der Konsole, ausgelagerte
+`style.css`/`app.js`, nicht-blockierende Stats und reaktivierter Theme-Switcher.
